@@ -1,0 +1,6 @@
+{
+  "name": "Automator",
+  "description": "تطبيق تشغيل وتأتمتة المهام وضغط الشاشة تلقائياً بصلاحيات Root ومحاكاة النقرات بالفيديو والذكاء الاصطناعي",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

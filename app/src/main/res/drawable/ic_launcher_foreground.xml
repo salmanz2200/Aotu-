@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Glowing Symmetrical Shield Path in center -->
+    <path
+        android:pathData="M54,22 C68,25 76,28 76,46 C76,64 68,76 54,86 C40,76 32,64 32,46 C32,28 40,25 54,22 Z"
+        android:strokeWidth="3"
+        android:strokeColor="#38BDF8">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="22"
+                android:endX="54"
+                android:endY="86"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#1E293B" />
+                <item android:offset="1.0" android:color="#0F172A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Stylized Neon Lightning Bolt in the center -->
+    <path
+        android:pathData="M58,28 L38,54 L52,54 L44,80 L70,48 L54,48 Z"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="38"
+                android:startY="28"
+                android:endX="70"
+                android:endY="80"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00F2FE" />
+                <item android:offset="1.0" android:color="#4FACFE" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
