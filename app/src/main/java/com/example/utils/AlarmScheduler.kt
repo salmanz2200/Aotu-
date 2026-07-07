@@ -128,7 +128,7 @@ object AlarmScheduler {
                     set(Calendar.SECOND, 0)
                     set(Calendar.MILLISECOND, 0)
                 }
-                if (todayTrigger.timeInMillis <= nowCompare.timeInMillis) {
+                if (todayTrigger.timeInMillis < nowCompare.timeInMillis) {
                     // Past time today, skip scheduling for today
                 } else {
                     // Future time today, schedule for today

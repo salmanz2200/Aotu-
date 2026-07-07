@@ -25,7 +25,7 @@ class AutomationReceiver : BroadcastReceiver() {
         )
         wakeLock.acquire(10000) // Keep CPU awake for up to 10 seconds to launch service
 
-        if (action == Intent.ACTION_BOOT_COMPLETED || action == "android.intent.action.QUICKBOOT_POWERON") {
+        if (action == Intent.ACTION_BOOT_COMPLETED || action == "android.intent.action.QUICKBOOT_POWERON" || action == "com.sec.android.intent.action.QUICKBOOT_POWERON") {
             // Re-schedule all enabled tasks on boot
             val scope = CoroutineScope(Dispatchers.IO)
             scope.launch {

@@ -382,7 +382,7 @@ class AutomationService : Service() {
             
             val jsonArray = org.json.JSONArray(cleanJson)
             for (i in 0 until jsonArray.length()) {
-                val obj = jsonArray.getJSONObject(i)
+                val obj = jsonArray.optJSONObject(i) ?: continue
                 val x = obj.optDouble("x", 0.0).toFloat()
                 val y = obj.optDouble("y", 0.0).toFloat()
                 val delayMs = obj.optLong("delayMs", 1000L)
@@ -413,7 +413,11 @@ class AutomationService : Service() {
                     it.release()
                 }
             }
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing wakeLock in cleanupAndStop", e)
+        } finally {
+            wakeLock = null
+        }
         stopForeground(true)
         stopSelf()
     }
@@ -426,7 +430,11 @@ class AutomationService : Service() {
                     it.release()
                 }
             }
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing wakeLock in onDestroy", e)
+        } finally {
+            wakeLock = null
+        }
         Log.d(TAG, "AutomationService Destroyed")
     }
 

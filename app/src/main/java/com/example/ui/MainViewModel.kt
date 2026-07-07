@@ -241,9 +241,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun checkRootAndApiKey() {
         viewModelScope.launch {
-            _isRootAvailable.value = ShellExecutor.isRootAvailable()
-            val apiKey = BuildConfig.GEMINI_API_KEY
-            _isGeminiConfigured.value = apiKey.isNotEmpty() && apiKey != "MY_GEMINI_API_KEY"
+            while (true) {
+                val rootOk = withContext(Dispatchers.IO) {
+                    ShellExecutor.isRootAvailable()
+                }
+                _isRootAvailable.value = rootOk
+                val apiKey = BuildConfig.GEMINI_API_KEY
+                _isGeminiConfigured.value = apiKey.isNotEmpty() && apiKey != "MY_GEMINI_API_KEY"
+                kotlinx.coroutines.delay(30000)
+            }
         }
     }
 
@@ -478,6 +484,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (frame != null) {
                     val resized = Bitmap.createScaledBitmap(frame, 450, 800, true)
                     bitmaps.add(resized)
+                    if (resized != frame) {
+                        frame.recycle()
+                    }
                 }
             }
 
@@ -491,6 +500,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     lastFrame.compress(Bitmap.CompressFormat.JPEG, 90, out)
                 }
                 Log.d(TAG, "Target last frame saved to ${targetFile.absolutePath}")
+                lastFrame.recycle()
             }
 
             _videoAnalysisProgress.value = "جاري إرسال اللقطات لـ Gemini 3.5 للتحليل..."

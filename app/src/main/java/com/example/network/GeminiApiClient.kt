@@ -93,6 +93,26 @@ object GeminiApiClient {
         return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
     }
 
+    private fun parseJsonResponse(text: String?): org.json.JSONObject? {
+        if (text.isNullOrEmpty()) return null
+        try {
+            var cleanText = text.trim()
+            if (cleanText.startsWith("```")) {
+                val lines = cleanText.lines()
+                if (lines.size >= 2) {
+                    cleanText = lines.subList(1, lines.size - 1).joinToString("\n").trim()
+                }
+            }
+            if (cleanText.startsWith("json")) {
+                cleanText = cleanText.substring(4).trim()
+            }
+            return org.json.JSONObject(cleanText)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse JSON response: $text", e)
+            return null
+        }
+    }
+
     suspend fun analyzeVideoFrames(frames: List<Bitmap>, width: Int, height: Int): String? {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
@@ -148,6 +168,14 @@ object GeminiApiClient {
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for video analysis", e)
             null
+        } finally {
+            frames.forEach {
+                try {
+                    if (!it.isRecycled) {
+                        it.recycle()
+                    }
+                } catch (ex: Exception) {}
+            }
         }
     }
 
@@ -193,11 +221,14 @@ object GeminiApiClient {
             val response = service.generateContent(apiKey, request)
             val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             Log.d(TAG, "Gemini match result: $textResult")
-            // Parse simple json result e.g. "success": true
-            textResult?.contains("\"success\": true") == true || textResult?.contains("\"success\":true") == true
+            val json = parseJsonResponse(textResult)
+            json?.optBoolean("success", false) ?: false
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for screen comparison", e)
             true // Fallback to assuming success
+        } finally {
+            try { if (!targetFrame.isRecycled) targetFrame.recycle() } catch (ex: Exception) {}
+            try { if (!actualScreenshot.isRecycled) actualScreenshot.recycle() } catch (ex: Exception) {}
         }
     }
 
@@ -238,10 +269,13 @@ object GeminiApiClient {
             val response = service.generateContent(apiKey, request)
             val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             Log.d(TAG, "Gemini text validation result: $textResult")
-            textResult?.contains("\"success\": true") == true || textResult?.contains("\"success\":true") == true
+            val json = parseJsonResponse(textResult)
+            json?.optBoolean("success", false) ?: false
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for text search on screen", e)
             true // Fallback to assuming success
+        } finally {
+            try { if (!screenshot.isRecycled) screenshot.recycle() } catch (ex: Exception) {}
         }
     }
 
@@ -319,11 +353,15 @@ object GeminiApiClient {
             if (textResult == null) {
                 null
             } else {
-                textResult.contains("\"success\": true") || textResult.contains("\"success\":true")
+                val json = parseJsonResponse(textResult)
+                json?.optBoolean("success", false)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for unified verification", e)
             null
+        } finally {
+            try { if (!actualScreenshot.isRecycled) actualScreenshot.recycle() } catch (ex: Exception) {}
+            try { if (referenceImage != null && !referenceImage.isRecycled) referenceImage.recycle() } catch (ex: Exception) {}
         }
     }
 }
