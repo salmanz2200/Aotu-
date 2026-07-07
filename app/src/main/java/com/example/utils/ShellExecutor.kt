@@ -52,6 +52,9 @@ object ShellExecutor {
         } catch (e: Exception) {
         } finally {
             try { whichReader?.close() } catch (e: Exception) {}
+            try { whichProcess?.inputStream?.close() } catch (e: Exception) {}
+            try { whichProcess?.errorStream?.close() } catch (e: Exception) {}
+            try { whichProcess?.outputStream?.close() } catch (e: Exception) {}
             try { whichProcess?.destroy() } catch (e: Exception) {}
         }
 
@@ -70,6 +73,9 @@ object ShellExecutor {
         } catch (e: Exception) {
         } finally {
             try { idReader?.close() } catch (e: Exception) {}
+            try { idProcess?.inputStream?.close() } catch (e: Exception) {}
+            try { idProcess?.errorStream?.close() } catch (e: Exception) {}
+            try { idProcess?.outputStream?.close() } catch (e: Exception) {}
             try { idProcess?.destroy() } catch (e: Exception) {}
         }
 
@@ -110,6 +116,9 @@ object ShellExecutor {
             } finally {
                 try { isReader?.close() } catch (e: Exception) {}
                 try { esReader?.close() } catch (e: Exception) {}
+                try { process?.inputStream?.close() } catch (e: Exception) {}
+                try { process?.errorStream?.close() } catch (e: Exception) {}
+                try { process?.outputStream?.close() } catch (e: Exception) {}
                 try { process?.destroy() } catch (e: Exception) {}
             }
         }
@@ -165,6 +174,9 @@ object ShellExecutor {
             try { os?.close() } catch (e: Exception) {}
             try { isReader?.close() } catch (e: Exception) {}
             try { esReader?.close() } catch (e: Exception) {}
+            try { process?.inputStream?.close() } catch (e: Exception) {}
+            try { process?.errorStream?.close() } catch (e: Exception) {}
+            try { process?.outputStream?.close() } catch (e: Exception) {}
             try { process?.destroy() } catch (e: Exception) {}
         }
     }

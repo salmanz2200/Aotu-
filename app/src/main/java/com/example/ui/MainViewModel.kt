@@ -303,7 +303,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         validationWaitTimeSec: Int = 6,
         loopUntilSuccess: Boolean = false,
         maxAttempts: Int = 3,
-        referenceImagePath: String? = null
+        referenceImagePath: String? = null,
+        isRecurring: Boolean = true
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             val currentEditing = _editingTask.value
@@ -325,7 +326,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     validationWaitTimeSec = validationWaitTimeSec,
                     loopUntilSuccess = loopUntilSuccess,
                     maxAttempts = maxAttempts,
-                    referenceImagePath = referenceImagePath
+                    referenceImagePath = referenceImagePath,
+                    isRecurring = isRecurring
                 )
             } else {
                 AutomationTask(
@@ -345,7 +347,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     validationWaitTimeSec = validationWaitTimeSec,
                     loopUntilSuccess = loopUntilSuccess,
                     maxAttempts = maxAttempts,
-                    referenceImagePath = referenceImagePath
+                    referenceImagePath = referenceImagePath,
+                    isRecurring = isRecurring
                 )
             }
 

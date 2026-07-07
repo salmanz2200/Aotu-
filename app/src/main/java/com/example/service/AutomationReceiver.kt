@@ -52,6 +52,28 @@ class AutomationReceiver : BroadcastReceiver() {
                 } else {
                     context.startService(serviceIntent)
                 }
+
+                // Reschedule the task for its next occurrence if it's marked as recurring, or disable it
+                val scope = CoroutineScope(Dispatchers.IO)
+                scope.launch {
+                    try {
+                        val db = AppDatabase.getDatabase(context)
+                        val task = db.taskDao().getTaskById(taskId)
+                        if (task != null && task.isEnabled) {
+                            if (task.isRecurring) {
+                                Log.d(TAG, "Rescheduling recurring task ID: $taskId")
+                                AlarmScheduler.scheduleTask(context, task)
+                            } else {
+                                Log.d(TAG, "Disabling non-recurring task ID: $taskId after execution start")
+                                val disabledTask = task.copy(isEnabled = false)
+                                db.taskDao().updateTask(disabledTask)
+                                AlarmScheduler.cancelTask(context, disabledTask)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error rescheduling task ID $taskId in receiver", e)
+                    }
+                }
             }
         }
     }

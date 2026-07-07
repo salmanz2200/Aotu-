@@ -72,121 +72,130 @@ class AutomationService : Service() {
 
     private fun runTask(taskId: Int) {
         CoroutineScope(Dispatchers.IO).launch {
-            val db = AppDatabase.getDatabase(this@AutomationService)
-            val task = db.taskDao().getTaskById(taskId)
-            
-            if (task == null || !task.isEnabled) {
-                Log.w(TAG, "Task $taskId not found or disabled")
-                cleanupAndStop()
-                return@launch
-            }
-
-            // Re-acquire wakeLock with dynamic duration based on task validation wait time to prevent sleep
-            val durationMs = (task.validationWaitTimeSec.coerceIn(1, 3600) + 120) * 1000L
             try {
-                if (wakeLock?.isHeld == true) {
-                    wakeLock?.release()
-                }
-            } catch (e: Exception) {}
-
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = powerManager.newWakeLock(
-                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                "Automator:FullExecutionWakeLock"
-            )
-            wakeLock?.acquire(durationMs)
-            Log.d(TAG, "Acquired wakeLock for dynamic duration: ${durationMs / 1000} seconds")
-
-            Log.d(TAG, "Running automation task: ${task.name} for package ${task.packageName}")
-            var executionSuccess = false
-            var executionMsg = ""
-
-            try {
-                // 1. Wake up device screen
-                ShellExecutor.execute("input keyevent KEYCODE_WAKEUP", useRoot = true)
-                ShellExecutor.execute("input keyevent 224", useRoot = true) // Screen on
-                ShellExecutor.execute("wm dismiss-keyguard", useRoot = true) // Dismiss lockscreen
-                withContext(Dispatchers.Main) {
-                    Thread.sleep(1500)
+                val db = AppDatabase.getDatabase(this@AutomationService)
+                val task = db.taskDao().getTaskById(taskId)
+                
+                if (task == null || !task.isEnabled) {
+                    Log.w(TAG, "Task $taskId not found or disabled")
+                    return@launch
                 }
 
-                // 2. Perform the execution steps based on user-defined limits
-                val maxLimit = if (task.loopUntilSuccess) task.maxAttempts.coerceAtLeast(1) else 1
-                var attempt = 1
-                while (attempt <= maxLimit && !executionSuccess) {
-                    Log.d(TAG, "Attempt $attempt / $maxLimit for task ${task.name}")
-                    updateNotification("جاري تنفيذ المحاولة $attempt من $maxLimit...")
-                    val runResult = executeTaskSteps(task)
-                    executionSuccess = runResult.first
-                    executionMsg = runResult.second
-
-                    if (!executionSuccess && attempt < maxLimit) {
-                        val retryDelayMs = attempt * 8000L // Progressive backoff: 8s, 16s, 24s...
-                        Log.w(TAG, "Attempt $attempt failed: $executionMsg. Retrying in ${retryDelayMs / 1000} seconds...")
-                        updateNotification("فشلت المحاولة $attempt. جاري إغلاق التطبيق وإعادة المحاولة بعد ${retryDelayMs / 1000} ثوانٍ...")
-                        ShellExecutor.simulateOrExecuteForceStop(task.packageName)
-                        try {
-                            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-                            activityManager.killBackgroundProcesses(task.packageName)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error calling killBackgroundProcesses", e)
-                        }
-                        withContext(Dispatchers.Main) {
-                            Thread.sleep(retryDelayMs)
-                        }
-                    }
-                    attempt++
-                }
-
-                // 3. Force stop target app to clean up
-                Log.d(TAG, "Force stopping target app: ${task.packageName}")
-                updateNotification("جاري إغلاق التطبيق المستهدف بالكامل من الخلفية...")
-                ShellExecutor.simulateOrExecuteForceStop(task.packageName)
+                // Re-acquire wakeLock with dynamic duration based on task validation wait time to prevent sleep
+                val durationMs = (task.validationWaitTimeSec.coerceIn(1, 3600) + 120) * 1000L
                 try {
-                    val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-                    activityManager.killBackgroundProcesses(task.packageName)
+                    if (wakeLock?.isHeld == true) {
+                        wakeLock?.release()
+                    }
+                } catch (e: Exception) {}
+
+                val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = powerManager.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "Automator:FullExecutionWakeLock"
+                )
+                wakeLock?.acquire(durationMs)
+                Log.d(TAG, "Acquired wakeLock for dynamic duration: ${durationMs / 1000} seconds")
+
+                Log.d(TAG, "Running automation task: ${task.name} for package ${task.packageName}")
+                var executionSuccess = false
+                var executionMsg = ""
+
+                try {
+                    // 1. Wake up device screen
+                    ShellExecutor.execute("input keyevent KEYCODE_WAKEUP", useRoot = true)
+                    ShellExecutor.execute("input keyevent 224", useRoot = true) // Screen on
+                    ShellExecutor.execute("wm dismiss-keyguard", useRoot = true) // Dismiss lockscreen
+                    withContext(Dispatchers.Main) {
+                        Thread.sleep(1500)
+                    }
+
+                    // 2. Perform the execution steps based on user-defined limits
+                    val maxLimit = if (task.loopUntilSuccess) task.maxAttempts.coerceAtLeast(1) else 1
+                    var attempt = 1
+                    while (attempt <= maxLimit && !executionSuccess) {
+                        Log.d(TAG, "Attempt $attempt / $maxLimit for task ${task.name}")
+                        updateNotification("جاري تنفيذ المحاولة $attempt من $maxLimit...")
+                        val runResult = executeTaskSteps(task)
+                        executionSuccess = runResult.first
+                        executionMsg = runResult.second
+
+                        if (!executionSuccess && attempt < maxLimit) {
+                            val retryDelayMs = attempt * 8000L // Progressive backoff: 8s, 16s, 24s...
+                            Log.w(TAG, "Attempt $attempt failed: $executionMsg. Retrying in ${retryDelayMs / 1000} seconds...")
+                            updateNotification("فشلت المحاولة $attempt. جاري إغلاق التطبيق وإعادة المحاولة بعد ${retryDelayMs / 1000} ثوانٍ...")
+                            ShellExecutor.simulateOrExecuteForceStop(task.packageName)
+                            try {
+                                val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                                activityManager.killBackgroundProcesses(task.packageName)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error calling killBackgroundProcesses", e)
+                            }
+                            withContext(Dispatchers.Main) {
+                                Thread.sleep(retryDelayMs)
+                            }
+                        }
+                        attempt++
+                    }
+
+                    // 3. Force stop target app to clean up
+                    Log.d(TAG, "Force stopping target app: ${task.packageName}")
+                    updateNotification("جاري إغلاق التطبيق المستهدف بالكامل من الخلفية...")
+                    ShellExecutor.simulateOrExecuteForceStop(task.packageName)
+                    try {
+                        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                        activityManager.killBackgroundProcesses(task.packageName)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error calling killBackgroundProcesses", e)
+                    }
+
+                    // Wait 2 seconds to make sure cleanup is fully completed
+                    withContext(Dispatchers.Main) {
+                        Thread.sleep(2000)
+                    }
+
+                    // 4. Lock screen again to preserve battery
+                    ShellExecutor.simulateOrExecuteLockScreen()
+
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error calling killBackgroundProcesses", e)
+                    executionSuccess = false
+                    executionMsg = "خطأ غير متوقع: ${e.message}"
+                    Log.e(TAG, "Error executing task", e)
                 }
 
-                // Wait 2 seconds to make sure cleanup is fully completed
-                withContext(Dispatchers.Main) {
-                    Thread.sleep(2000)
-                }
+                // 5. Update task stats in DB
+                val finalStatus = if (executionSuccess) "SUCCESS" else "FAILED"
+                val updatedTask = task.copy(
+                    lastRunTime = System.currentTimeMillis(),
+                    lastRunStatus = finalStatus
+                )
+                db.taskDao().updateTask(updatedTask)
 
-                // 4. Lock screen again to preserve battery
-                ShellExecutor.simulateOrExecuteLockScreen()
+                // 6. Log the execution
+                db.logDao().insertLog(
+                    ExecutionLog(
+                        taskId = task.id,
+                        taskName = task.name,
+                        packageName = task.packageName,
+                        status = finalStatus,
+                        message = executionMsg
+                    )
+                )
+
+                // 7. Reschedule the task for the next scheduled day if recurring, or disable if single run
+                if (updatedTask.isRecurring) {
+                    AlarmScheduler.scheduleTask(this@AutomationService, updatedTask)
+                } else {
+                    val nonRecurringDisabledTask = updatedTask.copy(isEnabled = false)
+                    db.taskDao().updateTask(nonRecurringDisabledTask)
+                    AlarmScheduler.cancelTask(this@AutomationService, nonRecurringDisabledTask)
+                }
 
             } catch (e: Exception) {
-                executionSuccess = false
-                executionMsg = "خطأ غير متوقع: ${e.message}"
-                Log.e(TAG, "Error executing task", e)
+                Log.e(TAG, "Critical outer error in runTask", e)
+            } finally {
+                cleanupAndStop()
             }
-
-            // 5. Update task stats in DB
-            val finalStatus = if (executionSuccess) "SUCCESS" else "FAILED"
-            val updatedTask = task.copy(
-                lastRunTime = System.currentTimeMillis(),
-                lastRunStatus = finalStatus
-            )
-            db.taskDao().updateTask(updatedTask)
-
-            // 6. Log the execution
-            db.logDao().insertLog(
-                ExecutionLog(
-                    taskId = task.id,
-                    taskName = task.name,
-                    packageName = task.packageName,
-                    status = finalStatus,
-                    message = executionMsg
-                )
-            )
-
-            // 7. Reschedule the task for the next scheduled day
-            AlarmScheduler.scheduleTask(this@AutomationService, updatedTask)
-
-            // Complete foreground execution
-            cleanupAndStop()
         }
     }
 

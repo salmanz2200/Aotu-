@@ -541,6 +541,7 @@ fun AddEditTaskScreen(
     var maxAttempts by remember { mutableStateOf(editingTask?.maxAttempts ?: 3) }
     var referenceImagePath by remember { mutableStateOf(editingTask?.referenceImagePath) }
     var delayBeforeTapSec by remember { mutableStateOf(editingTask?.delayBeforeTapSec ?: 3) }
+    var isRecurring by remember { mutableStateOf(editingTask?.isRecurring ?: true) }
 
     var showAppPicker by remember { mutableStateOf(false) }
     var showVideoPicker by remember { mutableStateOf(false) }
@@ -562,6 +563,7 @@ fun AddEditTaskScreen(
             maxAttempts = task.maxAttempts
             referenceImagePath = task.referenceImagePath
             delayBeforeTapSec = task.delayBeforeTapSec
+            isRecurring = task.isRecurring
         }
     }
 
@@ -1301,6 +1303,34 @@ fun AddEditTaskScreen(
                             Divider(color = Color(0xFF334155), thickness = 1.dp)
                             Spacer(modifier = Modifier.height(16.dp))
 
+                            // ----------------- RECURRING TASK MODE -----------------
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("تكرار المهمة تلقائياً (مهمة متكررة) 🔁", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(
+                                        "إذا تم تفعيل هذا الخيار، ستتم إعادة جدولة المهمة تلقائياً لليوم التالي بعد كل تنفيذ بنجاح أو فشل.",
+                                        fontSize = 10.sp,
+                                        color = Color.Gray,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                                Switch(
+                                    checked = isRecurring,
+                                    onCheckedChange = { isRecurring = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF4ADE80),
+                                        checkedTrackColor = Color(0xFF0F172A)
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Divider(color = Color(0xFF334155), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(16.dp))
+
                             // ----------------- LOOP / FOLLOW-UP MODE -----------------
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1394,7 +1424,8 @@ fun AddEditTaskScreen(
                     validationWaitTimeSec = validationWaitTimeSec,
                     loopUntilSuccess = loopUntilSuccess,
                     maxAttempts = maxAttempts,
-                    referenceImagePath = if (validationType == "IMAGE") referenceImagePath else null
+                    referenceImagePath = if (validationType == "IMAGE") referenceImagePath else null,
+                    isRecurring = isRecurring
                 )
                 Toast.makeText(context, "تم حفظ وجدولة المهمة بنجاح!", Toast.LENGTH_SHORT).show()
             },
