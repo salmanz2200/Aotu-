@@ -78,6 +78,7 @@ class AutomationService : Service() {
                 
                 if (task == null || !task.isEnabled) {
                     Log.w(TAG, "Task $taskId not found or disabled")
+                    cleanupAndStop()
                     return@launch
                 }
 
@@ -419,6 +420,13 @@ class AutomationService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            wakeLock?.let {
+                if (it.isHeld) {
+                    it.release()
+                }
+            }
+        } catch (e: Exception) {}
         Log.d(TAG, "AutomationService Destroyed")
     }
 

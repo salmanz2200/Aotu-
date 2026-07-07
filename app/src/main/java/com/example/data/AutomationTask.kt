@@ -27,5 +27,9 @@ data class AutomationTask(
     val maxAttempts: Int = 3, // Max attempts for looping
     val referenceImagePath: String? = null, // Saved path of custom reference image for image comparison
     val delayBeforeTapSec: Int = 3, // Wait time before tapping in seconds
-    val isRecurring: Boolean = true // Added field for recurrence check
+    val isRecurring: Boolean = true, // Added field for recurrence check
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val retryCount: Int = 0,
+    val maxRetries: Int = 3
 )

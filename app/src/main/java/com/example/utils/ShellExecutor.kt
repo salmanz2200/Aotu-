@@ -189,15 +189,19 @@ object ShellExecutor {
         
         val result = execute("input tap $xInt $yInt", useRoot = true)
         
-        // Secondary reinforcement execution with direct su -c
+        // Secondary reinforcement execution with direct su -c and proper resource safety
+        var p: Process? = null
         try {
-            val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "input tap $xInt $yInt"))
-            try { p.inputStream.close() } catch (e: Exception) {}
-            try { p.errorStream.close() } catch (e: Exception) {}
-            try { p.outputStream.close() } catch (e: Exception) {}
-            p.destroy()
+            p = Runtime.getRuntime().exec(arrayOf("su", "-c", "input tap $xInt $yInt"))
         } catch (e: Exception) {
             Log.e(TAG, "Direct su -c tap execution failed", e)
+        } finally {
+            p?.let {
+                try { it.inputStream?.close() } catch (e: Exception) {}
+                try { it.errorStream?.close() } catch (e: Exception) {}
+                try { it.outputStream?.close() } catch (e: Exception) {}
+                try { it.destroy() } catch (e: Exception) {}
+            }
         }
 
         if (result.isSuccess) {
@@ -215,21 +219,33 @@ object ShellExecutor {
         val result = execute("am force-stop $packageName", useRoot = true)
         execute("pkill -9 -f $packageName", useRoot = true)
         
-        // Direct su -c backup execution
+        // Direct su -c backup execution with proper resource safety
+        var p1: Process? = null
         try {
-            val p1 = Runtime.getRuntime().exec(arrayOf("su", "-c", "am force-stop $packageName"))
-            try { p1.inputStream.close() } catch (e: Exception) {}
-            try { p1.errorStream.close() } catch (e: Exception) {}
-            try { p1.outputStream.close() } catch (e: Exception) {}
-            p1.destroy()
-            
-            val p2 = Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -9 -f $packageName"))
-            try { p2.inputStream.close() } catch (e: Exception) {}
-            try { p2.errorStream.close() } catch (e: Exception) {}
-            try { p2.outputStream.close() } catch (e: Exception) {}
-            p2.destroy()
+            p1 = Runtime.getRuntime().exec(arrayOf("su", "-c", "am force-stop $packageName"))
         } catch (e: Exception) {
             Log.e(TAG, "Direct su -c force-stop execution failed", e)
+        } finally {
+            p1?.let {
+                try { it.inputStream?.close() } catch (e: Exception) {}
+                try { it.errorStream?.close() } catch (e: Exception) {}
+                try { it.outputStream?.close() } catch (e: Exception) {}
+                try { it.destroy() } catch (e: Exception) {}
+            }
+        }
+
+        var p2: Process? = null
+        try {
+            p2 = Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -9 -f $packageName"))
+        } catch (e: Exception) {
+            Log.e(TAG, "Direct su -c pkill execution failed", e)
+        } finally {
+            p2?.let {
+                try { it.inputStream?.close() } catch (e: Exception) {}
+                try { it.errorStream?.close() } catch (e: Exception) {}
+                try { it.outputStream?.close() } catch (e: Exception) {}
+                try { it.destroy() } catch (e: Exception) {}
+            }
         }
 
         if (result.isSuccess) {
