@@ -56,7 +56,12 @@ class AutomationService : Service() {
         if (taskId != -1) {
             try {
                 // Acquire wake lock to keep the device awake during active execution
-                val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                if (powerManager == null) {
+                    Log.e(TAG, "PowerManager not available, stopping service")
+                    cleanupAndStop()
+                    return START_NOT_STICKY
+                }
                 wakeLock = powerManager.newWakeLock(
                     PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
                     "Automator:FullExecutionWakeLock"
@@ -96,7 +101,12 @@ class AutomationService : Service() {
                     }
                 } catch (e: Exception) {}
 
-                val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                if (powerManager == null) {
+                    Log.e(TAG, "PowerManager not available in runTask")
+                    cleanupAndStop()
+                    return@launch
+                }
                 wakeLock = powerManager.newWakeLock(
                     PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
                     "Automator:FullExecutionWakeLock"

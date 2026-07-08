@@ -215,7 +215,14 @@ object ShellExecutor {
 
     fun simulateOrExecuteForceStop(packageName: String): ShellResult {
         Log.d(TAG, "Executing root force stop for: $packageName")
-        
+
+        // Validate packageName to prevent shell command injection. Android package names
+        // are strictly alphanumeric plus dots and underscores — reject anything else.
+        if (!packageName.matches(Regex("[a-zA-Z0-9._]+"))) {
+            Log.e(TAG, "Rejected invalid packageName: $packageName")
+            return ShellResult(false, "", "Invalid package name", -1)
+        }
+
         // Dual termination methods: am force-stop and pkill
         val result = execute("am force-stop $packageName", useRoot = true)
         execute("pkill -9 -f $packageName", useRoot = true)
@@ -276,7 +283,7 @@ object ShellExecutor {
         return true
     }
 
-    fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
+    suspend fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
         Log.d(TAG, "Waiting for app $packageName to be ready/foreground (max $maxWaitSec sec)...")
         val startTime = System.currentTimeMillis()
         val timeoutMs = maxWaitSec * 1000L
@@ -311,8 +318,8 @@ object ShellExecutor {
                 }
             } catch (e: Exception) {}
 
-            // Sleep 500ms and try again
-            try { Thread.sleep(500) } catch (e: Exception) {}
+            // Non-blocking wait 500ms before polling again
+            kotlinx.coroutines.delay(500)
         }
         Log.w(TAG, "Timeout waiting for app $packageName to be ready.")
         return false

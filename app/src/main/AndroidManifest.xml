@@ -2,6 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Only apps signed with the same key (i.e. this app itself / its AlarmManager
+         PendingIntents) may send broadcasts to AutomationReceiver. This prevents
+         any third-party app from triggering arbitrary task executions. -->
+    <permission
+        android:name="com.example.permission.AUTOMATION"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="com.example.permission.AUTOMATION" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -51,7 +60,8 @@
         <receiver
             android:name=".service.AutomationReceiver"
             android:enabled="true"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.example.permission.AUTOMATION">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />

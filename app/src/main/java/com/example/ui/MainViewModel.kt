@@ -27,6 +27,7 @@ import com.example.service.OverlayService
 import com.example.utils.AlarmScheduler
 import com.example.utils.ShellExecutor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -450,9 +451,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 onSuccess()
             } else {
                 _videoAnalysisProgress.value = "فشل تحليل الفيديو. يرجى التأكد من صلاحية الملف ومفتاح الذكاء الاصطناعي."
-                withContext(Dispatchers.IO) {
-                    Thread.sleep(3000)
-                }
+                delay(3000)
                 _videoAnalysisProgress.value = null
             }
         }

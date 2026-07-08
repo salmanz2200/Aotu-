@@ -29,14 +29,20 @@ class AutomationReceiver : BroadcastReceiver() {
             "Automator:ExecutionWakeLock"
         )
 
-        try {
-            wakeLock.acquire(10000) // Keep CPU awake for up to 10 seconds to launch service
-            Log.d(TAG, "WakeLock acquired")
+        // goAsync() tells the system that onReceive() is not finished yet, preventing
+        // the process from being killed before the coroutine completes its work.
+        val pendingResult = goAsync()
 
-            if (action == Intent.ACTION_BOOT_COMPLETED || action == "android.intent.action.QUICKBOOT_POWERON" || action == "com.sec.android.intent.action.QUICKBOOT_POWERON") {
-                // Re-schedule all enabled tasks on boot
-                val scope = CoroutineScope(Dispatchers.IO)
-                scope.launch {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                wakeLock.acquire(10000) // Keep CPU awake for up to 10 seconds to launch service
+                Log.d(TAG, "WakeLock acquired")
+
+                if (action == Intent.ACTION_BOOT_COMPLETED ||
+                    action == "android.intent.action.QUICKBOOT_POWERON" ||
+                    action == "com.sec.android.intent.action.QUICKBOOT_POWERON"
+                ) {
+                    // Re-schedule all enabled tasks on boot
                     try {
                         val db = AppDatabase.getDatabase(context)
                         val enabledTasks = db.taskDao().getEnabledTasks()
@@ -47,23 +53,20 @@ class AutomationReceiver : BroadcastReceiver() {
                     } catch (e: Exception) {
                         Log.e(TAG, "Error rescheduling tasks after boot", e)
                     }
-                }
-            } else if (action == "com.example.ACTION_RUN_TASK") {
-                val taskId = intent.getIntExtra("TASK_ID", -1)
-                Log.d(TAG, "Received alarm to run task ID: $taskId")
-                if (taskId != -1) {
-                    val serviceIntent = Intent(context, AutomationService::class.java).apply {
-                        putExtra("TASK_ID", taskId)
-                    }
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent)
-                    } else {
-                        context.startService(serviceIntent)
-                    }
+                } else if (action == "com.example.ACTION_RUN_TASK") {
+                    val taskId = intent.getIntExtra("TASK_ID", -1)
+                    Log.d(TAG, "Received alarm to run task ID: $taskId")
+                    if (taskId != -1) {
+                        val serviceIntent = Intent(context, AutomationService::class.java).apply {
+                            putExtra("TASK_ID", taskId)
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                            context.startForegroundService(serviceIntent)
+                        } else {
+                            context.startService(serviceIntent)
+                        }
 
-                    // Reschedule the task for its next occurrence if it's marked as recurring, or disable it
-                    val scope = CoroutineScope(Dispatchers.IO)
-                    scope.launch {
+                        // Reschedule the task for its next occurrence if recurring, or disable it
                         try {
                             val db = AppDatabase.getDatabase(context)
                             val task = db.taskDao().getTaskById(taskId)
@@ -83,15 +86,17 @@ class AutomationReceiver : BroadcastReceiver() {
                         }
                     }
                 }
-            }
-        } finally {
-            try {
-                if (wakeLock.isHeld) {
-                    wakeLock.release()
-                    Log.d(TAG, "WakeLock released")
+            } finally {
+                try {
+                    if (wakeLock.isHeld) {
+                        wakeLock.release()
+                        Log.d(TAG, "WakeLock released")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error releasing WakeLock", e)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error releasing WakeLock", e)
+                // Signal to the system that async work is complete
+                pendingResult.finish()
             }
         }
     }
