@@ -212,7 +212,7 @@ object GeminiApiClient {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
             Log.e(TAG, "Gemini API key is not configured!")
-            return true // Fallback to assuming match/success
+            return false
         }
 
         val promptText = """
@@ -254,7 +254,7 @@ object GeminiApiClient {
             json?.optBoolean("success", false) ?: false
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for screen comparison", e)
-            true // Fallback to assuming success
+            false
         } finally {
             try { if (!targetFrame.isRecycled) targetFrame.recycle() } catch (ex: Exception) {}
             try { if (!actualScreenshot.isRecycled) actualScreenshot.recycle() } catch (ex: Exception) {}
@@ -265,7 +265,7 @@ object GeminiApiClient {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
             Log.e(TAG, "Gemini API key is not configured!")
-            return true // Fallback to assuming success
+            return false
         }
 
         val safeTargetText = normalizeUntrustedText(targetText)
@@ -309,7 +309,7 @@ object GeminiApiClient {
             json?.optBoolean("success", false) ?: false
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for text search on screen", e)
-            true // Fallback to assuming success
+            false
         } finally {
             try { if (!screenshot.isRecycled) screenshot.recycle() } catch (ex: Exception) {}
         }

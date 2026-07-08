@@ -7,9 +7,11 @@ import java.io.InputStreamReader
 
 object ShellExecutor {
     private const val TAG = "ShellExecutor"
+    @Volatile
     private var isRootAvailableCached: Boolean? = null
     private val packageNameRegex = Regex("^[a-zA-Z0-9._]+$")
     private val classNameRegex = Regex("^[a-zA-Z0-9_.$]+$")
+    private val screenshotPathRegex = Regex("^[a-zA-Z0-9_./-]+$")
 
     data class ShellResult(
         val isSuccess: Boolean,
@@ -20,69 +22,74 @@ object ShellExecutor {
 
     fun isRootAvailable(): Boolean {
         isRootAvailableCached?.let { return it }
+        synchronized(this) {
+            isRootAvailableCached?.let { return it }
 
-        // Check standard files first
-        val paths = arrayOf(
-            "/system/app/Superuser.apk",
-            "/sbin/su",
-            "/system/bin/su",
-            "/system/xbin/su",
-            "/data/local/xbin/su",
-            "/data/local/bin/su",
-            "/system/sd/xbin/su",
-            "/system/bin/failsafe/su",
-            "/data/local/su"
-        )
-        for (path in paths) {
-            if (java.io.File(path).exists()) {
-                isRootAvailableCached = true
-                return true
+            // Check standard files first
+            val paths = arrayOf(
+                "/system/app/Superuser.apk",
+                "/sbin/su",
+                "/system/bin/su",
+                "/system/xbin/su",
+                "/data/local/xbin/su",
+                "/data/local/bin/su",
+                "/system/sd/xbin/su",
+                "/system/bin/failsafe/su",
+                "/data/local/su"
+            )
+            for (path in paths) {
+                if (java.io.File(path).exists()) {
+                    isRootAvailableCached = true
+                    return true
+                }
             }
-        }
 
-        // Try 'which su'
-        var whichProcess: Process? = null
-        var whichReader: BufferedReader? = null
-        try {
-            whichProcess = Runtime.getRuntime().exec(arrayOf("which", "su"))
-            whichReader = BufferedReader(InputStreamReader(whichProcess.inputStream))
-            val line = whichReader.readLine()
-            if (line != null && line.contains("su")) {
-                isRootAvailableCached = true
-                return true
+            // Try 'which su'
+            var whichProcess: Process? = null
+            var whichReader: BufferedReader? = null
+            try {
+                whichProcess = Runtime.getRuntime().exec(arrayOf("which", "su"))
+                whichReader = BufferedReader(InputStreamReader(whichProcess.inputStream))
+                val line = whichReader.readLine()
+                if (line != null && line.contains("su")) {
+                    isRootAvailableCached = true
+                    return true
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Root check via `which su` failed", e)
+            } finally {
+                try { whichReader?.close() } catch (e: Exception) {}
+                try { whichProcess?.inputStream?.close() } catch (e: Exception) {}
+                try { whichProcess?.errorStream?.close() } catch (e: Exception) {}
+                try { whichProcess?.outputStream?.close() } catch (e: Exception) {}
+                try { whichProcess?.destroy() } catch (e: Exception) {}
             }
-        } catch (e: Exception) {
-        } finally {
-            try { whichReader?.close() } catch (e: Exception) {}
-            try { whichProcess?.inputStream?.close() } catch (e: Exception) {}
-            try { whichProcess?.errorStream?.close() } catch (e: Exception) {}
-            try { whichProcess?.outputStream?.close() } catch (e: Exception) {}
-            try { whichProcess?.destroy() } catch (e: Exception) {}
-        }
 
-        // Try executing su directly with a simple command to check
-        var idProcess: Process? = null
-        var idReader: BufferedReader? = null
-        try {
-            idProcess = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-            idReader = BufferedReader(InputStreamReader(idProcess.inputStream))
-            val line = idReader.readLine()
-            val exitCode = idProcess.waitFor()
-            if (exitCode == 0 || (line != null && line.contains("uid=0"))) {
-                isRootAvailableCached = true
-                return true
+            // Try executing su directly with a simple command to check
+            var idProcess: Process? = null
+            var idReader: BufferedReader? = null
+            try {
+                idProcess = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+                idReader = BufferedReader(InputStreamReader(idProcess.inputStream))
+                val line = idReader.readLine()
+                val exitCode = idProcess.waitFor()
+                if (exitCode == 0 || (line != null && line.contains("uid=0"))) {
+                    isRootAvailableCached = true
+                    return true
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Root check via `su -c id` failed", e)
+            } finally {
+                try { idReader?.close() } catch (e: Exception) {}
+                try { idProcess?.inputStream?.close() } catch (e: Exception) {}
+                try { idProcess?.errorStream?.close() } catch (e: Exception) {}
+                try { idProcess?.outputStream?.close() } catch (e: Exception) {}
+                try { idProcess?.destroy() } catch (e: Exception) {}
             }
-        } catch (e: Exception) {
-        } finally {
-            try { idReader?.close() } catch (e: Exception) {}
-            try { idProcess?.inputStream?.close() } catch (e: Exception) {}
-            try { idProcess?.errorStream?.close() } catch (e: Exception) {}
-            try { idProcess?.outputStream?.close() } catch (e: Exception) {}
-            try { idProcess?.destroy() } catch (e: Exception) {}
-        }
 
-        isRootAvailableCached = false
-        return false
+            isRootAvailableCached = false
+            return false
+        }
     }
 
     fun execute(command: String, useRoot: Boolean = true): ShellResult {
@@ -188,25 +195,7 @@ object ShellExecutor {
         val xInt = x.toInt()
         val yInt = y.toInt()
         Log.d(TAG, "Executing root tap command at ($xInt, $yInt)")
-        
         val result = execute("input tap $xInt $yInt", useRoot = true)
-        
-        // Secondary reinforcement execution with direct su -c and proper resource safety
-        var p: Process? = null
-        try {
-            p = Runtime.getRuntime().exec(arrayOf("su", "-c", "input tap $xInt $yInt"))
-            p.waitFor()
-        } catch (e: Exception) {
-            Log.e(TAG, "Direct su -c tap execution failed", e)
-        } finally {
-            p?.let {
-                try { it.inputStream?.close() } catch (e: Exception) {}
-                try { it.errorStream?.close() } catch (e: Exception) {}
-                try { it.outputStream?.close() } catch (e: Exception) {}
-                try { it.destroy() } catch (e: Exception) {}
-            }
-        }
-
         if (result.isSuccess) {
             return result
         }
@@ -320,12 +309,17 @@ object ShellExecutor {
     }
 
     fun captureScreenshot(outputPath: String): Boolean {
+        if (!outputPath.matches(screenshotPathRegex)) {
+            Log.e(TAG, "Rejected unsafe screenshot output path: $outputPath")
+            return false
+        }
+
         val result = execute("screencap -p $outputPath", useRoot = true)
         if (result.isSuccess) {
             return true
         }
         Log.d(TAG, "SIMULATOR: Screen capture simulated to $outputPath")
-        return true
+        return false
     }
 
     suspend fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {

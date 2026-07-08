@@ -33,6 +33,8 @@ import com.example.data.AppDatabase
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -40,6 +42,7 @@ class OverlayService : Service() {
     private val TAG = "OverlayService"
     private var windowManager: WindowManager? = null
     private var composeView: ComposeView? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
@@ -124,7 +127,7 @@ class OverlayService : Service() {
     }
 
     private fun saveCoordinates(taskId: Int, x: Float, y: Float) {
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             val db = AppDatabase.getDatabase(this@OverlayService)
             val task = db.taskDao().getTaskById(taskId)
             if (task != null) {
@@ -174,6 +177,7 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        serviceScope.cancel()
         super.onDestroy()
         removeOverlayAndStop()
     }
