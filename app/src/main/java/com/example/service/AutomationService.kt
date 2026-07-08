@@ -22,6 +22,8 @@ import com.example.utils.AlarmScheduler
 import com.example.utils.ShellExecutor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,6 +41,7 @@ class AutomationService : Service() {
     private val CHANNEL_ID = "AutomatorServiceChannel"
     private val NOTIFICATION_ID = 888
 
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
@@ -82,7 +85,7 @@ class AutomationService : Service() {
     }
 
     private fun runTask(taskId: Int) {
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             try {
                 val db = AppDatabase.getDatabase(this@AutomationService)
                 val task = db.taskDao().getTaskById(taskId)
@@ -446,6 +449,7 @@ class AutomationService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel()
         releaseWakeLock()
         Log.d(TAG, "AutomationService Destroyed")
     }

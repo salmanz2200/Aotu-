@@ -404,7 +404,7 @@ object GeminiApiClient {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for unified verification", e)
-            null
+            false
         } finally {
             try { if (!actualScreenshot.isRecycled) actualScreenshot.recycle() } catch (ex: Exception) {}
             try { if (referenceImage != null && !referenceImage.isRecycled) referenceImage.recycle() } catch (ex: Exception) {}

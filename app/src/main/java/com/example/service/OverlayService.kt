@@ -44,11 +44,14 @@ import com.example.data.AppDatabase
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class OverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
     private val TAG = "OverlayService"
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var windowManager: WindowManager? = null
     private var composeView: ComposeView? = null
 
@@ -164,7 +167,7 @@ class OverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStat
     }
 
     private fun saveCoordinates(taskId: Int, x: Float, y: Float) {
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             val db = AppDatabase.getDatabase(this@OverlayService)
             val task = db.taskDao().getTaskById(taskId)
             if (task != null) {
@@ -216,6 +219,7 @@ class OverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStat
     override fun onDestroy() {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         myViewModelStore.clear()
+        serviceScope.cancel()
         super.onDestroy()
         removeOverlayAndStop()
     }

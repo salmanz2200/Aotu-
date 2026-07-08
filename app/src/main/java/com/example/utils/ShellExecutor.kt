@@ -11,6 +11,7 @@ object ShellExecutor {
     private var isRootAvailableCached: Boolean? = null
     private val packageNameRegex = Regex("^[a-zA-Z0-9._]+$")
     private val classNameRegex = Regex("^[a-zA-Z0-9_.$]+$")
+    private val pathRegex = Regex("^[a-zA-Z0-9_/.-]+$")
 
     data class ShellResult(
         val isSuccess: Boolean,
@@ -199,21 +200,6 @@ object ShellExecutor {
 
         val result = execute("input tap $xInt $yInt", useRoot = true)
 
-        var p: Process? = null
-        try {
-            p = Runtime.getRuntime().exec(arrayOf("su", "-c", "input tap $xInt $yInt"))
-            p.waitFor()
-        } catch (e: Exception) {
-            Log.e(TAG, "Direct su -c tap execution failed", e)
-        } finally {
-            p?.let {
-                try { it.inputStream?.close() } catch (e: Exception) {}
-                try { it.errorStream?.close() } catch (e: Exception) {}
-                try { it.outputStream?.close() } catch (e: Exception) {}
-                try { it.destroy() } catch (e: Exception) {}
-            }
-        }
-
         if (result.isSuccess) {
             return result
         }
@@ -316,6 +302,10 @@ object ShellExecutor {
     // Captures a screenshot via screencap. If execution fails, it returns false as a fail-safe fallback
     // instead of masking the error, allowing callers to handle screenshot failure gracefully.
     fun captureScreenshot(outputPath: String): Boolean {
+        if (!outputPath.matches(pathRegex)) {
+            Log.e(TAG, "Rejected unsafe screenshot output path: $outputPath")
+            return false
+        }
         val result = execute("screencap -p $outputPath", useRoot = true)
         if (result.isSuccess) {
             return true

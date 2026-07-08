@@ -367,8 +367,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
 
-            val id = repository.insertTask(taskToSave)
-            val savedTask = if (currentEditing != null) taskToSave else taskToSave.copy(id = id.toInt())
+            val savedTask = if (currentEditing != null) {
+                repository.updateTask(taskToSave)
+                taskToSave
+            } else {
+                val id = repository.insertTask(taskToSave)
+                taskToSave.copy(id = id.toInt())
+            }
 
             // Reschedule alarm
             AlarmScheduler.scheduleTask(context, savedTask)
