@@ -1502,6 +1502,10 @@ fun AddEditTaskScreen(
                     Toast.makeText(context, "يرجى كتابة اسم واختيار تطبيق مستهدف للمهمة", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
+                if (selectedDays.isEmpty()) {
+                    Toast.makeText(context, "يرجى اختيار يوم واحد على الأقل لتشغيل المهمة", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
                 viewModel.saveTask(
                     name = name,
                     packageName = selectedApp!!.packageName,
@@ -1898,7 +1902,7 @@ fun VideoGridItem(video: LocalVideo, onClick: () -> Unit) {
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(12.dp))
             ) {
-                VideoThumbnail(videoPath = video.path, modifier = Modifier.fillMaxSize())
+                VideoThumbnail(videoUri = video.uri, modifier = Modifier.fillMaxSize())
                 
                 // Small duration tag overlaid on the bottom right of the thumbnail
                 val durationText = formatDuration(video.durationMs)
@@ -1942,22 +1946,36 @@ fun VideoGridItem(video: LocalVideo, onClick: () -> Unit) {
     }
 }
 
+object ThumbnailCache {
+    private val cache = android.util.LruCache<String, Bitmap>(50) // Cache up to 50 items
+
+    fun get(uriString: String): Bitmap? = cache.get(uriString)
+    fun put(uriString: String, bitmap: Bitmap) {
+        cache.put(uriString, bitmap)
+    }
+}
+
 @Composable
-fun VideoThumbnail(videoPath: String, modifier: Modifier = Modifier) {
-    var thumbnail by remember { mutableStateOf<Bitmap?>(null) }
+fun VideoThumbnail(videoUri: Uri, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var thumbnail by remember(videoUri) { mutableStateOf<Bitmap?>(ThumbnailCache.get(videoUri.toString())) }
     
-    LaunchedEffect(videoPath) {
-        withContext(Dispatchers.IO) {
-            try {
-                val retriever = MediaMetadataRetriever()
-                retriever.setDataSource(videoPath)
-                val frame = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                retriever.release()
-                if (frame != null) {
-                    thumbnail = Bitmap.createScaledBitmap(frame, 120, 120, true)
+    if (thumbnail == null) {
+        LaunchedEffect(videoUri) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val retriever = MediaMetadataRetriever()
+                    retriever.setDataSource(context, videoUri)
+                    val frame = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    retriever.release()
+                    if (frame != null) {
+                        val scaled = Bitmap.createScaledBitmap(frame, 120, 120, true)
+                        ThumbnailCache.put(videoUri.toString(), scaled)
+                        thumbnail = scaled
+                    }
+                } catch (e: Exception) {
+                    // Ignore
                 }
-            } catch (e: Exception) {
-                // Ignore
             }
         }
     }

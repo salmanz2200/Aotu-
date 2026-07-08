@@ -105,6 +105,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scanLocalVideos()
     }
 
+    @Suppress("DEPRECATION")
     fun scanLocalVideos() {
         viewModelScope.launch(Dispatchers.IO) {
             val videos = mutableListOf<LocalVideo>()

@@ -213,17 +213,28 @@ object ShellExecutor {
         return ShellResult(true, "Simulated tap at ($xInt, $yInt)", "", 0)
     }
 
+    private fun sanitizePackageName(packageName: String): String {
+        // Android package name contains only alphanumeric characters, underscores, and dots.
+        // Let's filter out any other characters to prevent shell injection (e.g. ;, |, &, `, \, etc.)
+        val sanitized = packageName.filter { it.isLetterOrDigit() || it == '_' || it == '.' }
+        if (sanitized != packageName) {
+            Log.w(TAG, "⚠️ Package name sanitized: '$packageName' -> '$sanitized'")
+        }
+        return sanitized
+    }
+
     fun simulateOrExecuteForceStop(packageName: String): ShellResult {
-        Log.d(TAG, "Executing root force stop for: $packageName")
+        val safePackageName = sanitizePackageName(packageName)
+        Log.d(TAG, "Executing root force stop for: $safePackageName")
         
         // Dual termination methods: am force-stop and pkill
-        val result = execute("am force-stop $packageName", useRoot = true)
-        execute("pkill -9 -f $packageName", useRoot = true)
+        val result = execute("am force-stop $safePackageName", useRoot = true)
+        execute("pkill -9 -f $safePackageName", useRoot = true)
         
         // Direct su -c backup execution with proper resource safety
         var p1: Process? = null
         try {
-            p1 = Runtime.getRuntime().exec(arrayOf("su", "-c", "am force-stop $packageName"))
+            p1 = Runtime.getRuntime().exec(arrayOf("su", "-c", "am force-stop $safePackageName"))
             p1.waitFor()
         } catch (e: Exception) {
             Log.e(TAG, "Direct su -c force-stop execution failed", e)
@@ -238,7 +249,7 @@ object ShellExecutor {
 
         var p2: Process? = null
         try {
-            p2 = Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -9 -f $packageName"))
+            p2 = Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -9 -f $safePackageName"))
             p2.waitFor()
         } catch (e: Exception) {
             Log.e(TAG, "Direct su -c pkill execution failed", e)
@@ -254,8 +265,8 @@ object ShellExecutor {
         if (result.isSuccess) {
             return result
         }
-        Log.d(TAG, "SIMULATOR: Mocking force stop for $packageName")
-        return ShellResult(true, "Simulated force stop of $packageName", "", 0)
+        Log.d(TAG, "SIMULATOR: Mocking force stop for $safePackageName")
+        return ShellResult(true, "Simulated force stop of $safePackageName", "", 0)
     }
 
     fun simulateOrExecuteLockScreen(): ShellResult {
@@ -277,7 +288,8 @@ object ShellExecutor {
     }
 
     fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
-        Log.d(TAG, "Waiting for app $packageName to be ready/foreground (max $maxWaitSec sec)...")
+        val safePackageName = sanitizePackageName(packageName)
+        Log.d(TAG, "Waiting for app $safePackageName to be ready/foreground (max $maxWaitSec sec)...")
         val startTime = System.currentTimeMillis()
         val timeoutMs = maxWaitSec * 1000L
         
@@ -285,16 +297,16 @@ object ShellExecutor {
             // Check 1: Check using root dumpsys window
             val result = execute("dumpsys window | grep mCurrentFocus", useRoot = true)
             val output = result.output.lowercase()
-            if (result.isSuccess && output.contains(packageName.lowercase())) {
-                Log.d(TAG, "App $packageName is in foreground according to dumpsys!")
+            if (result.isSuccess && output.contains(safePackageName.lowercase())) {
+                Log.d(TAG, "App $safePackageName is in foreground according to dumpsys!")
                 return true
             }
             
             // Check 2: Check using resumed activity dumpsys activity
             val result2 = execute("dumpsys activity | grep mResumedActivity", useRoot = true)
             val output2 = result2.output.lowercase()
-            if (result2.isSuccess && output2.contains(packageName.lowercase())) {
-                Log.d(TAG, "App $packageName is in foreground according to mResumedActivity!")
+            if (result2.isSuccess && output2.contains(safePackageName.lowercase())) {
+                Log.d(TAG, "App $safePackageName is in foreground according to mResumedActivity!")
                 return true
             }
 
@@ -304,8 +316,8 @@ object ShellExecutor {
                 val runningTasks = am.getRunningTasks(1)
                 if (runningTasks.isNotEmpty()) {
                     val topActivity = runningTasks[0].topActivity
-                    if (topActivity != null && topActivity.packageName.equals(packageName, ignoreCase = true)) {
-                        Log.d(TAG, "App $packageName is in foreground according to getRunningTasks!")
+                    if (topActivity != null && topActivity.packageName.equals(safePackageName, ignoreCase = true)) {
+                        Log.d(TAG, "App $safePackageName is in foreground according to getRunningTasks!")
                         return true
                     }
                 }
@@ -314,7 +326,7 @@ object ShellExecutor {
             // Sleep 500ms and try again
             try { Thread.sleep(500) } catch (e: Exception) {}
         }
-        Log.w(TAG, "Timeout waiting for app $packageName to be ready.")
+        Log.w(TAG, "Timeout waiting for app $safePackageName to be ready.")
         return false
     }
 }
