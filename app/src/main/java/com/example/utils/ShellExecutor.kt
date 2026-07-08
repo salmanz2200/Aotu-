@@ -238,7 +238,9 @@ object ShellExecutor {
         }
         Log.d(TAG, "SIMULATOR: Screen capture simulated to $outputPath")
         return true
-    }    suspend fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
+    }
+
+    suspend fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
         val safePackageName = sanitizePackageName(packageName)
         Log.d(TAG, "Waiting for app $safePackageName to be ready/foreground (max $maxWaitSec sec)...")
         val startTime = System.currentTimeMillis()
