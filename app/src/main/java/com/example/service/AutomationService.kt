@@ -328,16 +328,18 @@ class AutomationService : Service() {
             return Pair(false, "فشل: لم يتم العثور على التطبيق المستهدف أو تعذر تشغيله")
         }
         
-        // Use am start via Root shell to launch the activity with full system privileges
+        // Use am start with validation to launch the activity safely
         var amStarted = false
         val componentName = launchIntent.component
         if (componentName != null) {
-            val componentStr = "${componentName.packageName}/${componentName.className}"
-            Log.d(TAG, "Launching via am start shell command: $componentStr")
-            val shellResult = ShellExecutor.execute("am start -n $componentStr", useRoot = true)
+            Log.d(TAG, "Launching via am start component: ${componentName.packageName}/${componentName.className}")
+            val shellResult = ShellExecutor.startActivityComponent(
+                packageName = componentName.packageName,
+                className = componentName.className
+            )
             if (shellResult.isSuccess) {
                 amStarted = true
-                Log.d(TAG, "Successfully launched app via am start shell.")
+                Log.d(TAG, "Successfully launched app via am start.")
             }
         }
         
