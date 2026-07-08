@@ -113,6 +113,26 @@ object GeminiApiClient {
         }
     }
 
+    private suspend fun <T> executeWithRetry(
+        action: suspend () -> T
+    ): T {
+        var lastException: Exception? = null
+        var attempts = 0
+        while (attempts < 2) {
+            try {
+                return action()
+            } catch (e: Exception) {
+                attempts++
+                lastException = e
+                if (attempts < 2) {
+                    Log.w(TAG, "Gemini API call failed, retrying in 2 seconds (attempt $attempts)...", e)
+                    kotlinx.coroutines.delay(2000)
+                }
+            }
+        }
+        throw lastException ?: Exception("API call failed after retries")
+    }
+
     suspend fun analyzeVideoFrames(frames: List<Bitmap>, width: Int, height: Int): String? {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
@@ -161,7 +181,7 @@ object GeminiApiClient {
         )
 
         return try {
-            val response = service.generateContent(apiKey, request)
+            val response = executeWithRetry { service.generateContent(apiKey, request) }
             val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             Log.d(TAG, "Gemini analysis result: $textResult")
             textResult
@@ -218,7 +238,7 @@ object GeminiApiClient {
         )
 
         return try {
-            val response = service.generateContent(apiKey, request)
+            val response = executeWithRetry { service.generateContent(apiKey, request) }
             val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             Log.d(TAG, "Gemini match result: $textResult")
             val json = parseJsonResponse(textResult)
@@ -266,7 +286,7 @@ object GeminiApiClient {
         )
 
         return try {
-            val response = service.generateContent(apiKey, request)
+            val response = executeWithRetry { service.generateContent(apiKey, request) }
             val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             Log.d(TAG, "Gemini text validation result: $textResult")
             val json = parseJsonResponse(textResult)
@@ -347,7 +367,7 @@ object GeminiApiClient {
         )
 
         return try {
-            val response = service.generateContent(apiKey, request)
+            val response = executeWithRetry { service.generateContent(apiKey, request) }
             val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             Log.d(TAG, "Gemini verifyWithGemini result: $textResult")
             if (textResult == null) {

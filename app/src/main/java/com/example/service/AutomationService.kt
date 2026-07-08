@@ -53,18 +53,23 @@ class AutomationService : Service() {
         Log.d(TAG, "AutomationService StartCommand for task ID: $taskId")
 
         if (taskId != -1) {
-            // Acquire wake lock to keep the device awake during active execution
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = powerManager.newWakeLock(
-                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                "Automator:FullExecutionWakeLock"
-            )
-            wakeLock?.acquire(3 * 60 * 1000L) // 3 minutes max
+            try {
+                // Acquire wake lock to keep the device awake during active execution
+                val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                wakeLock = powerManager.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "Automator:FullExecutionWakeLock"
+                )
+                wakeLock?.acquire(3 * 60 * 1000L) // 3 minutes max
 
-            updateNotification("جاري تشغيل المهمة تلقائياً...")
-            runTask(taskId)
+                updateNotification("جاري تشغيل المهمة تلقائياً...")
+                runTask(taskId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during onStartCommand initialization", e)
+                cleanupAndStop()
+            }
         } else {
-            stopSelf()
+            cleanupAndStop()
         }
 
         return START_NOT_STICKY
@@ -406,35 +411,30 @@ class AutomationService : Service() {
         return steps
     }
 
-    private fun cleanupAndStop() {
+    private fun releaseWakeLock() {
         try {
             wakeLock?.let {
                 if (it.isHeld) {
                     it.release()
+                    Log.d(TAG, "WakeLock released successfully.")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error releasing wakeLock in cleanupAndStop", e)
+            Log.e(TAG, "Error releasing wakeLock", e)
         } finally {
             wakeLock = null
         }
+    }
+
+    private fun cleanupAndStop() {
+        releaseWakeLock()
         stopForeground(true)
         stopSelf()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        try {
-            wakeLock?.let {
-                if (it.isHeld) {
-                    it.release()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error releasing wakeLock in onDestroy", e)
-        } finally {
-            wakeLock = null
-        }
+        releaseWakeLock()
         Log.d(TAG, "AutomationService Destroyed")
     }
 

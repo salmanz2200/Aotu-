@@ -193,6 +193,7 @@ object ShellExecutor {
         var p: Process? = null
         try {
             p = Runtime.getRuntime().exec(arrayOf("su", "-c", "input tap $xInt $yInt"))
+            p.waitFor()
         } catch (e: Exception) {
             Log.e(TAG, "Direct su -c tap execution failed", e)
         } finally {
@@ -223,6 +224,7 @@ object ShellExecutor {
         var p1: Process? = null
         try {
             p1 = Runtime.getRuntime().exec(arrayOf("su", "-c", "am force-stop $packageName"))
+            p1.waitFor()
         } catch (e: Exception) {
             Log.e(TAG, "Direct su -c force-stop execution failed", e)
         } finally {
@@ -237,6 +239,7 @@ object ShellExecutor {
         var p2: Process? = null
         try {
             p2 = Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -9 -f $packageName"))
+            p2.waitFor()
         } catch (e: Exception) {
             Log.e(TAG, "Direct su -c pkill execution failed", e)
         } finally {

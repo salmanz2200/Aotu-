@@ -118,17 +118,13 @@ object AlarmScheduler {
                 break
             } else if (day == currentDay) {
                 // Check if hour:minute is in the future today
-                val todayTrigger = Calendar.getInstance().apply {
+                val todayTrigger = (now.clone() as Calendar).apply {
                     set(Calendar.HOUR_OF_DAY, hour)
                     set(Calendar.MINUTE, minute)
                     set(Calendar.SECOND, 0)
                     set(Calendar.MILLISECOND, 0)
                 }
-                val nowCompare = (now.clone() as Calendar).apply {
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                if (todayTrigger.timeInMillis < nowCompare.timeInMillis) {
+                if (todayTrigger.timeInMillis <= now.timeInMillis) {
                     // Past time today, skip scheduling for today
                 } else {
                     // Future time today, schedule for today
