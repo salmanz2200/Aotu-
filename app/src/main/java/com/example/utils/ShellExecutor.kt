@@ -8,6 +8,8 @@ import java.io.InputStreamReader
 object ShellExecutor {
     private const val TAG = "ShellExecutor"
     private var isRootAvailableCached: Boolean? = null
+    private val packageNameRegex = Regex("^[a-zA-Z0-9._]+$")
+    private val classNameRegex = Regex("^[a-zA-Z0-9_.$]+$")
 
     data class ShellResult(
         val isSuccess: Boolean,
@@ -213,12 +215,55 @@ object ShellExecutor {
         return ShellResult(true, "Simulated tap at ($xInt, $yInt)", "", 0)
     }
 
+    fun startActivityComponent(packageName: String, className: String): ShellResult {
+        if (!packageName.matches(packageNameRegex) || !className.matches(classNameRegex)) {
+            Log.e(TAG, "Rejected unsafe component name: $packageName/$className")
+            return ShellResult(false, "", "Invalid activity component name", -1)
+        }
+
+        val component = "$packageName/$className"
+        var process: Process? = null
+        var isReader: BufferedReader? = null
+        var esReader: BufferedReader? = null
+        return try {
+            process = Runtime.getRuntime().exec(arrayOf("am", "start", "-n", component))
+            isReader = BufferedReader(InputStreamReader(process.inputStream))
+            esReader = BufferedReader(InputStreamReader(process.errorStream))
+
+            val output = isReader.readLines().joinToString("\n")
+            val error = esReader.readLines().joinToString("\n")
+            val exitCode = process.waitFor()
+            Log.d(TAG, "am start result: exitCode=$exitCode, out=$output, err=$error")
+            ShellResult(
+                isSuccess = exitCode == 0,
+                output = output,
+                error = error,
+                exitCode = exitCode
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start component with am", e)
+            ShellResult(
+                isSuccess = false,
+                output = "",
+                error = e.message ?: "Unknown error",
+                exitCode = -1
+            )
+        } finally {
+            try { isReader?.close() } catch (e: Exception) {}
+            try { esReader?.close() } catch (e: Exception) {}
+            try { process?.inputStream?.close() } catch (e: Exception) {}
+            try { process?.errorStream?.close() } catch (e: Exception) {}
+            try { process?.outputStream?.close() } catch (e: Exception) {}
+            try { process?.destroy() } catch (e: Exception) {}
+        }
+    }
+
     fun simulateOrExecuteForceStop(packageName: String): ShellResult {
         Log.d(TAG, "Executing root force stop for: $packageName")
 
         // Validate packageName to prevent shell command injection. Android package names
         // are strictly alphanumeric plus dots and underscores — reject anything else.
-        if (!packageName.matches(Regex("[a-zA-Z0-9._]+"))) {
+        if (!packageName.matches(packageNameRegex)) {
             Log.e(TAG, "Rejected invalid packageName: $packageName")
             return ShellResult(false, "", "Invalid package name", -1)
         }
