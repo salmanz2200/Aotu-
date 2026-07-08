@@ -57,14 +57,22 @@
         </activity>
 
         <receiver
+            android:name=".service.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.sec.android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".service.AutomationReceiver"
             android:enabled="true"
             android:exported="true"
             android:permission="com.example.permission.AUTOMATION">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="com.sec.android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.example.ACTION_RUN_TASK" />
             </intent-filter>
         </receiver>
@@ -73,7 +81,11 @@
             android:name=".service.AutomationService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Automation and accessibility task executor" />
+        </service>
 
         <service
             android:name=".service.OverlayService"

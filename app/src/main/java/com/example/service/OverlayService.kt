@@ -28,6 +28,17 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.MainActivity
 import com.example.data.AppDatabase
 import com.example.ui.theme.MyApplicationTheme
@@ -36,10 +47,29 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class OverlayService : Service() {
+class OverlayService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
     private val TAG = "OverlayService"
     private var windowManager: WindowManager? = null
     private var composeView: ComposeView? = null
+
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val myViewModelStore = ViewModelStore()
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+
+    override val lifecycle: Lifecycle
+        get() = lifecycleRegistry
+
+    override val viewModelStore: ViewModelStore
+        get() = myViewModelStore
+
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateRegistryController.savedStateRegistry
+
+    override fun onCreate() {
+        super.onCreate()
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+    }
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
@@ -98,6 +128,12 @@ class OverlayService : Service() {
 
         composeView = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            
+            // Set the view tree owners required by Jetpack Compose
+            setViewTreeLifecycleOwner(this@OverlayService)
+            setViewTreeViewModelStoreOwner(this@OverlayService)
+            setViewTreeSavedStateRegistryOwner(this@OverlayService)
+
             setContent {
                 MyApplicationTheme {
                     CoordinateCaptureScreen(
@@ -113,6 +149,10 @@ class OverlayService : Service() {
                 }
             }
         }
+
+        // Move lifecycle to started and resumed states so ComposeView compiles and starts drawing
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 
         try {
             windowManager?.addView(composeView, params)
@@ -174,6 +214,8 @@ class OverlayService : Service() {
     }
 
     override fun onDestroy() {
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        myViewModelStore.clear()
         super.onDestroy()
         removeOverlayAndStop()
     }

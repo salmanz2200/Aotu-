@@ -241,73 +241,84 @@ class AutomationService : Service() {
 
     private suspend fun performValidationSteps(task: AutomationTask, defaultMsg: String): Pair<Boolean, String> {
         val validationType = task.validationType
-        if (validationType == "TEXT") {
-            val validationText = task.validationText
-            if (validationText.isNullOrBlank()) {
-                return Pair(true, "$defaultMsg (تم النجاح افتراضياً لعدم تحديد نص التحقق)")
-            }
-
-            Log.d(TAG, "Validating via screen text: '$validationText'")
-            updateNotification("جاري التحقق من النص: '$validationText' على الشاشة...")
-            val actualCapPath = File(cacheDir, "actual_cap_${task.id}.png").absolutePath
-            val capRes = ShellExecutor.captureScreenshot(actualCapPath)
-            
-            if (capRes && File(actualCapPath).exists()) {
-                val actualBitmap = BitmapFactory.decodeFile(actualCapPath)
-                if (actualBitmap != null) {
-                    val containsText = GeminiApiClient.verifyWithGemini(actualBitmap, null, validationText)
-                    Log.d(TAG, "Text verification outcome: $containsText")
-                    return when (containsText) {
-                        true -> Pair(true, "نجح")
-                        false -> Pair(false, "فشل: لم يتم العثور على النص المطلوب '$validationText' على الشاشة")
-                        null -> Pair(false, "فشل: انتهت مهلة التحقق أو حدث خطأ أثناء الاتصال بخدمة Gemini")
-                    }
+        val actualCapFile = File(cacheDir, "actual_cap_${task.id}.png")
+        
+        try {
+            if (validationType == "TEXT") {
+                val validationText = task.validationText
+                if (validationText.isNullOrBlank()) {
+                    return Pair(true, "$defaultMsg (تم النجاح افتراضياً لعدم تحديد نص التحقق)")
                 }
-            }
-            return Pair(false, "فشل: تعذر التقاط صورة للشاشة للتحقق من النص")
 
-        } else if (validationType == "IMAGE") {
-            // Use user-provided reference image path if available, otherwise fallback to targetLastFrame
-            val appDir = getExternalFilesDir(null) ?: filesDir
-            val customRefFile = task.referenceImagePath?.let { File(it) }
-            val targetLastFrameFile = File(appDir, "target_last_frame_${task.id}.jpg")
-
-            val referenceFile = when {
-                customRefFile != null && customRefFile.exists() -> customRefFile
-                targetLastFrameFile.exists() -> targetLastFrameFile
-                else -> null
-            }
-
-            if (referenceFile != null) {
-                Log.d(TAG, "Validating via image comparison with file: ${referenceFile.absolutePath}. Taking screen capture...")
-                updateNotification("جاري التحقق من تطابق الشاشة مع الصورة المرجعية...")
-                val actualCapPath = File(cacheDir, "actual_cap_${task.id}.png").absolutePath
-                val capRes = ShellExecutor.captureScreenshot(actualCapPath)
+                Log.d(TAG, "Validating via screen text: '$validationText'")
+                updateNotification("جاري التحقق من النص: '$validationText' على الشاشة...")
+                val capRes = ShellExecutor.captureScreenshot(actualCapFile.absolutePath)
                 
-                if (capRes && File(actualCapPath).exists()) {
-                    val targetBitmap = BitmapFactory.decodeFile(referenceFile.absolutePath)
-                    val actualBitmap = BitmapFactory.decodeFile(actualCapPath)
-                    
-                    if (targetBitmap != null && actualBitmap != null) {
-                        val matchResult = GeminiApiClient.verifyWithGemini(actualBitmap, targetBitmap, null)
-                        Log.d(TAG, "Image verification outcome: $matchResult")
-                        return when (matchResult) {
+                if (capRes && actualCapFile.exists()) {
+                    val actualBitmap = BitmapFactory.decodeFile(actualCapFile.absolutePath)
+                    if (actualBitmap != null) {
+                        val containsText = GeminiApiClient.verifyWithGemini(actualBitmap, null, validationText)
+                        Log.d(TAG, "Text verification outcome: $containsText")
+                        return when (containsText) {
                             true -> Pair(true, "نجح")
-                            false -> Pair(false, "فشل: الشاشة الحالية لا تتطابق مع صورة النجاح المرجعية")
+                            false -> Pair(false, "فشل: لم يتم العثور على النص المطلوب '$validationText' على الشاشة")
                             null -> Pair(false, "فشل: انتهت مهلة التحقق أو حدث خطأ أثناء الاتصال بخدمة Gemini")
                         }
-                    } else {
-                        return Pair(false, "فشل: تعذر تحميل الصور للتحقق من التطابق")
                     }
                 }
-                return Pair(false, "فشل: تعذر التقاط صورة للشاشة للمقارنة بالصورة المرجعية")
-            } else {
-                return Pair(true, "$defaultMsg (تم النجاح لعدم العثور على صورة مرجعية للتحقق)")
+                return Pair(false, "فشل: تعذر التقاط صورة للشاشة للتحقق من النص")
+
+            } else if (validationType == "IMAGE") {
+                // Use user-provided reference image path if available, otherwise fallback to targetLastFrame
+                val appDir = getExternalFilesDir(null) ?: filesDir
+                val customRefFile = task.referenceImagePath?.let { File(it) }
+                val targetLastFrameFile = File(appDir, "target_last_frame_${task.id}.jpg")
+
+                val referenceFile = when {
+                    customRefFile != null && customRefFile.exists() -> customRefFile
+                    targetLastFrameFile.exists() -> targetLastFrameFile
+                    else -> null
+                }
+
+                if (referenceFile != null) {
+                    Log.d(TAG, "Validating via image comparison with file: ${referenceFile.absolutePath}. Taking screen capture...")
+                    updateNotification("جاري التحقق من تطابق الشاشة مع الصورة المرجعية...")
+                    val capRes = ShellExecutor.captureScreenshot(actualCapFile.absolutePath)
+                    
+                    if (capRes && actualCapFile.exists()) {
+                        val targetBitmap = BitmapFactory.decodeFile(referenceFile.absolutePath)
+                        val actualBitmap = BitmapFactory.decodeFile(actualCapFile.absolutePath)
+                        
+                        if (targetBitmap != null && actualBitmap != null) {
+                            val matchResult = GeminiApiClient.verifyWithGemini(actualBitmap, targetBitmap, null)
+                            Log.d(TAG, "Image verification outcome: $matchResult")
+                            return when (matchResult) {
+                                  true -> Pair(true, "نجح")
+                                  false -> Pair(false, "فشل: الشاشة الحالية لا تتطابق مع صورة النجاح المرجعية")
+                                  null -> Pair(false, "فشل: انتهت مهلة التحقق أو حدث خطأ أثناء الاتصال بخدمة Gemini")
+                            }
+                        } else {
+                            return Pair(false, "فشل: تعذر تحميل الصور للتحقق من التطابق")
+                        }
+                    }
+                    return Pair(false, "فشل: تعذر التقاط صورة للشاشة للمقارنة بالصورة المرجعية")
+                } else {
+                    return Pair(true, "$defaultMsg (تم النجاح لعدم العثور على صورة مرجعية للتحقق)")
+                }
+            }
+
+            // validationType == "NONE"
+            return Pair(true, defaultMsg)
+        } finally {
+            if (actualCapFile.exists()) {
+                try {
+                    val deleted = actualCapFile.delete()
+                    Log.d(TAG, "Temporary validation screen capture deleted: $deleted")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error deleting temporary screen capture file", e)
+                }
             }
         }
-
-        // validationType == "NONE"
-        return Pair(true, defaultMsg)
     }
 
     private suspend fun executeTaskSteps(task: AutomationTask): Pair<Boolean, String> {
