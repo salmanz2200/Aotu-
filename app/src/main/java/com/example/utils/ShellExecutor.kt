@@ -4,6 +4,7 @@ import android.util.Log
 import java.io.BufferedReader
 import java.io.DataOutputStream
 import java.io.InputStreamReader
+import kotlin.concurrent.thread
 
 object ShellExecutor {
     private const val TAG = "ShellExecutor"
@@ -19,6 +20,39 @@ object ShellExecutor {
         val error: String,
         val exitCode: Int
     )
+
+    private fun readConcurrently(
+        stdoutReader: BufferedReader,
+        stderrReader: BufferedReader
+    ): Pair<String, String> {
+        var output = ""
+        var error = ""
+        var stdoutException: Exception? = null
+        var stderrException: Exception? = null
+
+        val stdoutThread = thread(start = true) {
+            try {
+                output = stdoutReader.readText()
+            } catch (e: Exception) {
+                stdoutException = e
+            }
+        }
+        val stderrThread = thread(start = true) {
+            try {
+                error = stderrReader.readText()
+            } catch (e: Exception) {
+                stderrException = e
+            }
+        }
+
+        stdoutThread.join()
+        stderrThread.join()
+
+        stdoutException?.let { throw it }
+        stderrException?.let { throw it }
+
+        return output to error
+    }
 
     fun isRootAvailable(): Boolean {
         isRootAvailableCached?.let { return it }
@@ -105,8 +139,7 @@ object ShellExecutor {
                 isReader = BufferedReader(InputStreamReader(process.inputStream))
                 esReader = BufferedReader(InputStreamReader(process.errorStream))
                 
-                val output = isReader.readLines().joinToString("\n")
-                val error = esReader.readLines().joinToString("\n")
+                val (output, error) = readConcurrently(isReader, esReader)
                 val exitCode = process.waitFor()
                 
                 Log.d(TAG, "su -c direct execution result: exitCode=$exitCode, out=$output, err=$error")
@@ -159,8 +192,7 @@ object ShellExecutor {
             isReader = BufferedReader(InputStreamReader(process.inputStream))
             esReader = BufferedReader(InputStreamReader(process.errorStream))
             
-            val output = isReader.readLines().joinToString("\n")
-            val error = esReader.readLines().joinToString("\n")
+            val (output, error) = readConcurrently(isReader, esReader)
 
             val exitCode = process.waitFor()
 

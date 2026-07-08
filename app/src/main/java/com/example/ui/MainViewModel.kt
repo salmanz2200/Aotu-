@@ -359,7 +359,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
 
-            val savedTask = if (currentEditing != null) {
+            val savedTask = if (taskToSave.id > 0) {
                 repository.updateTask(taskToSave)
                 taskToSave
             } else {

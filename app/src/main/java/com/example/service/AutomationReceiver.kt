@@ -5,8 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
 import android.util.Log
-import com.example.data.AppDatabase
-import com.example.utils.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -38,22 +36,7 @@ class AutomationReceiver : BroadcastReceiver() {
                 wakeLock.acquire(10000) // Keep CPU awake for up to 10 seconds to launch service
                 Log.d(TAG, "WakeLock acquired")
 
-                if (action == Intent.ACTION_BOOT_COMPLETED ||
-                    action == "android.intent.action.QUICKBOOT_POWERON" ||
-                    action == "com.sec.android.intent.action.QUICKBOOT_POWERON"
-                ) {
-                    // Re-schedule all enabled tasks on boot
-                    try {
-                        val db = AppDatabase.getDatabase(context)
-                        val enabledTasks = db.taskDao().getEnabledTasks()
-                        Log.d(TAG, "Re-scheduling ${enabledTasks.size} enabled tasks after boot")
-                        enabledTasks.forEach { task ->
-                            AlarmScheduler.scheduleTask(context, task)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error rescheduling tasks after boot", e)
-                    }
-                } else if (action == "com.example.ACTION_RUN_TASK") {
+                if (action == "com.example.ACTION_RUN_TASK") {
                     val taskId = intent.getIntExtra("TASK_ID", -1)
                     Log.d(TAG, "Received alarm to run task ID: $taskId")
                     if (taskId != -1) {
