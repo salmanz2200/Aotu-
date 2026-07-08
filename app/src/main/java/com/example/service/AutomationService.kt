@@ -63,7 +63,7 @@ class AutomationService : Service() {
                     return START_NOT_STICKY
                 }
                 wakeLock = powerManager.newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
                     "Automator:FullExecutionWakeLock"
                 )
                 wakeLock?.acquire(3 * 60 * 1000L) // 3 minutes max
@@ -108,7 +108,7 @@ class AutomationService : Service() {
                     return@launch
                 }
                 wakeLock = powerManager.newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
                     "Automator:FullExecutionWakeLock"
                 )
                 wakeLock?.acquire(durationMs)

@@ -49,6 +49,19 @@ abstract class AppDatabase : RoomDatabase() {
         private fun migrateSchema(db: SupportSQLiteDatabase) {
             Log.d(TAG, "Running schema migration checks...")
             try {
+                // Ensure execution_logs table exists
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `execution_logs` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`taskId` INTEGER NOT NULL, " +
+                    "`taskName` TEXT NOT NULL, " +
+                    "`packageName` TEXT NOT NULL, " +
+                    "`timestamp` INTEGER NOT NULL, " +
+                    "`status` TEXT NOT NULL, " +
+                    "`message` TEXT NOT NULL, " +
+                    "`screenshotPath` TEXT)"
+                )
+
                 // Ensure all possible columns added in newer versions exist in the automation_tasks table
                 addColumnIfNotExists(db, "automation_tasks", "actionType", "TEXT", "'TAP'")
                 addColumnIfNotExists(db, "automation_tasks", "tapX", "REAL", "0.0")

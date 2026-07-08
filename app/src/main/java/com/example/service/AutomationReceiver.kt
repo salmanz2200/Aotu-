@@ -22,7 +22,7 @@ class AutomationReceiver : BroadcastReceiver() {
             if (taskId != -1) {
                 val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
                 val wakeLock = powerManager?.newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
                     "Automator:ExecutionWakeLock"
                 )
 

@@ -689,8 +689,7 @@ fun AddEditTaskScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                if (inputStream != null) {
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
                     val appDir = context.getExternalFilesDir(null) ?: context.filesDir
                     val taskIdSuffix = editingTask?.id ?: System.currentTimeMillis()
                     val destFile = File(appDir, "custom_ref_$taskIdSuffix.jpg")
@@ -1963,11 +1962,11 @@ fun VideoThumbnail(videoUri: Uri, modifier: Modifier = Modifier) {
     if (thumbnail == null) {
         LaunchedEffect(videoUri) {
             withContext(Dispatchers.IO) {
+                var retriever: MediaMetadataRetriever? = null
                 try {
-                    val retriever = MediaMetadataRetriever()
+                    retriever = MediaMetadataRetriever()
                     retriever.setDataSource(context, videoUri)
                     val frame = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    retriever.release()
                     if (frame != null) {
                         val scaled = Bitmap.createScaledBitmap(frame, 120, 120, true)
                         ThumbnailCache.put(videoUri.toString(), scaled)
@@ -1975,6 +1974,8 @@ fun VideoThumbnail(videoUri: Uri, modifier: Modifier = Modifier) {
                     }
                 } catch (e: Exception) {
                     // Ignore
+                } finally {
+                    try { retriever?.release() } catch (ex: Exception) {}
                 }
             }
         }

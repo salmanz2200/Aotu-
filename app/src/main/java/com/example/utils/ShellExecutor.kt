@@ -12,6 +12,30 @@ object ShellExecutor {
     private val packageNameRegex = Regex("^[a-zA-Z0-9_.]+$")
     private val classNameRegex = Regex("^[a-zA-Z0-9_.$]+$")
 
+    private fun readProcessStreams(process: Process): Pair<String, String> {
+        var output = ""
+        var error = ""
+        val t1 = Thread {
+            try {
+                output = process.inputStream.bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error reading stdout", e)
+            }
+        }
+        val t2 = Thread {
+            try {
+                error = process.errorStream.bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error reading stderr", e)
+            }
+        }
+        t1.start()
+        t2.start()
+        try { t1.join(10000) } catch (e: Exception) {}
+        try { t2.join(10000) } catch (e: Exception) {}
+        return Pair(output.trim(), error.trim())
+    }
+
     data class ShellResult(
         val isSuccess: Boolean,
         val output: String,
@@ -92,15 +116,9 @@ object ShellExecutor {
         if (useRoot) {
             // Try executing via su -c directly first, as requested
             var process: Process? = null
-            var isReader: BufferedReader? = null
-            var esReader: BufferedReader? = null
             try {
                 process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
-                isReader = BufferedReader(InputStreamReader(process.inputStream))
-                esReader = BufferedReader(InputStreamReader(process.errorStream))
-                
-                val output = isReader.readLines().joinToString("\n")
-                val error = esReader.readLines().joinToString("\n")
+                val (output, error) = readProcessStreams(process)
                 val exitCode = process.waitFor()
                 
                 Log.d(TAG, "su -c direct execution result: exitCode=$exitCode, out=$output, err=$error")
@@ -117,8 +135,6 @@ object ShellExecutor {
             } catch (e: Exception) {
                 Log.w(TAG, "su -c execution failed, falling back to stdin writing...", e)
             } finally {
-                try { isReader?.close() } catch (e: Exception) {}
-                try { esReader?.close() } catch (e: Exception) {}
                 try { process?.inputStream?.close() } catch (e: Exception) {}
                 try { process?.errorStream?.close() } catch (e: Exception) {}
                 try { process?.outputStream?.close() } catch (e: Exception) {}
@@ -129,8 +145,6 @@ object ShellExecutor {
         // Fallback to the original stdin writing shell execution or standard shell
         var process: Process? = null
         var os: DataOutputStream? = null
-        var isReader: BufferedReader? = null
-        var esReader: BufferedReader? = null
 
         try {
             val shell = if (useRoot) "su" else "sh"
@@ -150,12 +164,7 @@ object ShellExecutor {
             os.writeBytes("exit\n")
             os.flush()
 
-            isReader = BufferedReader(InputStreamReader(process.inputStream))
-            esReader = BufferedReader(InputStreamReader(process.errorStream))
-            
-            val output = isReader.readLines().joinToString("\n")
-            val error = esReader.readLines().joinToString("\n")
-
+            val (output, error) = readProcessStreams(process)
             val exitCode = process.waitFor()
 
             Log.d(TAG, "Fallback Command result: exitCode=$exitCode, out=$output, err=$error")
@@ -175,8 +184,6 @@ object ShellExecutor {
             )
         } finally {
             try { os?.close() } catch (e: Exception) {}
-            try { isReader?.close() } catch (e: Exception) {}
-            try { esReader?.close() } catch (e: Exception) {}
             try { process?.inputStream?.close() } catch (e: Exception) {}
             try { process?.errorStream?.close() } catch (e: Exception) {}
             try { process?.outputStream?.close() } catch (e: Exception) {}
@@ -208,15 +215,9 @@ object ShellExecutor {
 
         val component = "$packageName/$className"
         var process: Process? = null
-        var isReader: BufferedReader? = null
-        var esReader: BufferedReader? = null
         return try {
             process = Runtime.getRuntime().exec(arrayOf("su", "-c", "am start -n $component"))
-            isReader = BufferedReader(InputStreamReader(process.inputStream))
-            esReader = BufferedReader(InputStreamReader(process.errorStream))
-
-            val output = isReader.readLines().joinToString("\n")
-            val error = esReader.readLines().joinToString("\n")
+            val (output, error) = readProcessStreams(process)
             val exitCode = process.waitFor()
             Log.d(TAG, "am start result: exitCode=$exitCode, out=$output, err=$error")
             ShellResult(
@@ -234,8 +235,6 @@ object ShellExecutor {
                 exitCode = -1
             )
         } finally {
-            try { isReader?.close() } catch (e: Exception) {}
-            try { esReader?.close() } catch (e: Exception) {}
             try { process?.inputStream?.close() } catch (e: Exception) {}
             try { process?.errorStream?.close() } catch (e: Exception) {}
             try { process?.outputStream?.close() } catch (e: Exception) {}
@@ -278,11 +277,7 @@ object ShellExecutor {
 
     fun captureScreenshot(outputPath: String): Boolean {
         val result = execute("screencap -p $outputPath", useRoot = true)
-        if (result.isSuccess) {
-            return true
-        }
-        Log.d(TAG, "SIMULATOR: Screen capture simulated to $outputPath")
-        return true
+        return result.isSuccess
     }
 
     suspend fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
@@ -307,20 +302,7 @@ object ShellExecutor {
                 Log.d(TAG, "App $safePackageName is in foreground according to mResumedActivity!")
                 return true
             }
- 
-            // Check 3: Check using ActivityManager running tasks (fallback, works sometimes)
-            try {
-                val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-                val runningTasks = am.getRunningTasks(1)
-                if (runningTasks.isNotEmpty()) {
-                    val topActivity = runningTasks[0].topActivity
-                    if (topActivity != null && topActivity.packageName.equals(safePackageName, ignoreCase = true)) {
-                        Log.d(TAG, "App $safePackageName is in foreground according to getRunningTasks!")
-                        return true
-                    }
-                }
-            } catch (e: Exception) {}
- 
+
             // Sleep 500ms and try again
             try { delay(500) } catch (e: Exception) {}
         }

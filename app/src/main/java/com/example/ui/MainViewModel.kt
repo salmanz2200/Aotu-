@@ -138,27 +138,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     } else if (file.isFile) {
                         val ext = file.extension.lowercase(Locale.US)
                         if (supportedExtensions.contains(ext)) {
+                            var added = false
                             try {
-                                val retriever = MediaMetadataRetriever()
-                                retriever.setDataSource(file.absolutePath)
-                                val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                                val durationMs = durationStr?.toLongOrNull() ?: 0L
-                                retriever.release()
-                                
-                                val uri = Uri.fromFile(file)
-                                videos.add(
-                                    LocalVideo(
-                                        uri = uri,
-                                        name = file.name,
-                                        path = file.absolutePath,
-                                        durationMs = durationMs,
-                                        size = file.length(),
-                                        mimeType = "video/$ext"
+                                var retriever: MediaMetadataRetriever? = null
+                                try {
+                                    retriever = MediaMetadataRetriever()
+                                    retriever.setDataSource(file.absolutePath)
+                                    val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                    val durationMs = durationStr?.toLongOrNull() ?: 0L
+                                    
+                                    val uri = Uri.fromFile(file)
+                                    videos.add(
+                                        LocalVideo(
+                                            uri = uri,
+                                            name = file.name,
+                                            path = file.absolutePath,
+                                            durationMs = durationMs,
+                                            size = file.length(),
+                                            mimeType = "video/$ext"
+                                        )
                                     )
-                                )
+                                    added = true
+                                } finally {
+                                    try { retriever?.release() } catch (ex: Exception) {}
+                                }
                             } catch (e: Exception) {
                                 Log.e("MainViewModel", "Error reading metadata for ${file.absolutePath}", e)
-                                // Still add with 0 duration if metadata retrieval fails
+                            }
+                            if (!added) {
                                 val uri = Uri.fromFile(file)
                                 videos.add(
                                     LocalVideo(
@@ -463,13 +470,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         var tempFile: File? = null
         try {
             // Write URI to temp file because MediaMetadataRetriever works best with files or descriptors
-            val inputStream = context.contentResolver.openInputStream(videoUri) ?: return null
-            tempFile = File(context.cacheDir, "temp_video_$taskId.mp4")
-            FileOutputStream(tempFile).use { out ->
-                inputStream.copyTo(out)
-            }
+            context.contentResolver.openInputStream(videoUri)?.use { inputStream ->
+                tempFile = File(context.cacheDir, "temp_video_$taskId.mp4")
+                FileOutputStream(tempFile).use { out ->
+                    inputStream.copyTo(out)
+                }
+            } ?: return null
 
-            retriever.setDataSource(tempFile.absolutePath)
+            val file = tempFile ?: return null
+            retriever.setDataSource(file.absolutePath)
             val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             val durationMs = durationStr?.toLongOrNull() ?: 5000L
 
