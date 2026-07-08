@@ -1,6 +1,7 @@
 package com.example.utils
 
 import android.util.Log
+import kotlinx.coroutines.delay
 import java.io.BufferedReader
 import java.io.DataOutputStream
 import java.io.InputStreamReader
@@ -214,13 +215,14 @@ object ShellExecutor {
     }
 
     private fun sanitizePackageName(packageName: String): String {
-        // Android package name contains only alphanumeric characters, underscores, and dots.
-        // Let's filter out any other characters to prevent shell injection (e.g. ;, |, &, `, \, etc.)
-        val sanitized = packageName.filter { it.isLetterOrDigit() || it == '_' || it == '.' }
-        if (sanitized != packageName) {
-            Log.w(TAG, "⚠️ Package name sanitized: '$packageName' -> '$sanitized'")
+        // Android package names contain only alphanumeric characters, underscores, and dots.
+        // Enforce a strict regex to prevent any shell command injection (no ;, |, &, `, \, etc.)
+        val regex = Regex("^[a-zA-Z0-9_.]+$")
+        if (!regex.matches(packageName)) {
+            Log.e(TAG, "❌ SECURITY ALERT: Potential command injection blocked in package name: '$packageName'")
+            throw IllegalArgumentException("Invalid package name: potential command injection")
         }
-        return sanitized
+        return packageName
     }
 
     fun simulateOrExecuteForceStop(packageName: String): ShellResult {
@@ -285,9 +287,7 @@ object ShellExecutor {
         }
         Log.d(TAG, "SIMULATOR: Screen capture simulated to $outputPath")
         return true
-    }
-
-    fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
+    }    suspend fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
         val safePackageName = sanitizePackageName(packageName)
         Log.d(TAG, "Waiting for app $safePackageName to be ready/foreground (max $maxWaitSec sec)...")
         val startTime = System.currentTimeMillis()
@@ -309,7 +309,7 @@ object ShellExecutor {
                 Log.d(TAG, "App $safePackageName is in foreground according to mResumedActivity!")
                 return true
             }
-
+ 
             // Check 3: Check using ActivityManager running tasks (fallback, works sometimes)
             try {
                 val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
@@ -322,9 +322,9 @@ object ShellExecutor {
                     }
                 }
             } catch (e: Exception) {}
-
+ 
             // Sleep 500ms and try again
-            try { Thread.sleep(500) } catch (e: Exception) {}
+            try { delay(500) } catch (e: Exception) {}
         }
         Log.w(TAG, "Timeout waiting for app $safePackageName to be ready.")
         return false

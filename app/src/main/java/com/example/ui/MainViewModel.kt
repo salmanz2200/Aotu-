@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -451,9 +452,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 onSuccess()
             } else {
                 _videoAnalysisProgress.value = "فشل تحليل الفيديو. يرجى التأكد من صلاحية الملف ومفتاح الذكاء الاصطناعي."
-                withContext(Dispatchers.IO) {
-                    Thread.sleep(3000)
-                }
+                delay(3000)
                 _videoAnalysisProgress.value = null
             }
         }
