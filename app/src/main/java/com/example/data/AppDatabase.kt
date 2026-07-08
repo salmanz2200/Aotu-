@@ -1,7 +1,6 @@
 package com.example.data
 
 import android.content.Context
-import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -14,110 +13,74 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun logDao(): LogDao
 
     companion object {
-        private const val TAG = "AppDatabase"
-
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        // Safe migration definitions from version 1 to 6
+        // v1 → v2: added actionType, tapX, tapY, videoFilePath, mimicSteps columns;
+        //           created the execution_logs table.
         private val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                migrateSchema(db)
-            }
-        }
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                migrateSchema(db)
-            }
-        }
-        private val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                migrateSchema(db)
-            }
-        }
-        private val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                migrateSchema(db)
-            }
-        }
-        private val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                migrateSchema(db)
-            }
-        }
-
-        private fun migrateSchema(db: SupportSQLiteDatabase) {
-            Log.d(TAG, "Running schema migration checks...")
-            try {
-                // Ensure execution_logs table exists
-                db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS `execution_logs` (" +
-                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-                    "`taskId` INTEGER NOT NULL, " +
-                    "`taskName` TEXT NOT NULL, " +
-                    "`packageName` TEXT NOT NULL, " +
-                    "`timestamp` INTEGER NOT NULL, " +
-                    "`status` TEXT NOT NULL, " +
-                    "`message` TEXT NOT NULL, " +
-                    "`screenshotPath` TEXT)"
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN actionType TEXT NOT NULL DEFAULT 'TAP'")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN tapX REAL NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN tapY REAL NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN videoFilePath TEXT")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN mimicSteps TEXT")
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS execution_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        taskId INTEGER NOT NULL,
+                        taskName TEXT NOT NULL,
+                        packageName TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        screenshotPath TEXT
+                    )
+                    """.trimIndent()
                 )
-
-                // Ensure all possible columns added in newer versions exist in the automation_tasks table
-                addColumnIfNotExists(db, "automation_tasks", "actionType", "TEXT", "'TAP'")
-                addColumnIfNotExists(db, "automation_tasks", "tapX", "REAL", "0.0")
-                addColumnIfNotExists(db, "automation_tasks", "tapY", "REAL", "0.0")
-                addColumnIfNotExists(db, "automation_tasks", "videoFilePath", "TEXT", "NULL")
-                addColumnIfNotExists(db, "automation_tasks", "mimicSteps", "TEXT", "NULL")
-                addColumnIfNotExists(db, "automation_tasks", "lastRunTime", "INTEGER", "0")
-                addColumnIfNotExists(db, "automation_tasks", "lastRunStatus", "TEXT", "NULL")
-                addColumnIfNotExists(db, "automation_tasks", "validationType", "TEXT", "'NONE'")
-                addColumnIfNotExists(db, "automation_tasks", "validationText", "TEXT", "NULL")
-                addColumnIfNotExists(db, "automation_tasks", "validationWaitTimeSec", "INTEGER", "6")
-                addColumnIfNotExists(db, "automation_tasks", "loopUntilSuccess", "INTEGER", "0")
-                addColumnIfNotExists(db, "automation_tasks", "maxAttempts", "INTEGER", "3")
-                addColumnIfNotExists(db, "automation_tasks", "referenceImagePath", "TEXT", "NULL")
-                addColumnIfNotExists(db, "automation_tasks", "delayBeforeTapSec", "INTEGER", "3")
-                addColumnIfNotExists(db, "automation_tasks", "isRecurring", "INTEGER", "1")
-                addColumnIfNotExists(db, "automation_tasks", "createdAt", "INTEGER", "0")
-                addColumnIfNotExists(db, "automation_tasks", "updatedAt", "INTEGER", "0")
-                addColumnIfNotExists(db, "automation_tasks", "retryCount", "INTEGER", "0")
-                addColumnIfNotExists(db, "automation_tasks", "maxRetries", "INTEGER", "3")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error executing migration schema upgrades", e)
             }
         }
 
-        private fun addColumnIfNotExists(
-            db: SupportSQLiteDatabase,
-            tableName: String,
-            columnName: String,
-            columnType: String,
-            defaultValue: String? = null
-        ) {
-            var columnExists = false
-            val cursor = db.query("PRAGMA table_info($tableName)")
-            try {
-                val nameIndex = cursor.getColumnIndex("name")
-                if (nameIndex != -1) {
-                    while (cursor.moveToNext()) {
-                        if (cursor.getString(nameIndex).equals(columnName, ignoreCase = true)) {
-                            columnExists = true
-                            break
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error checking column existence for $columnName in table $tableName", e)
-            } finally {
-                cursor.close()
+        // v2 → v3: added lastRunTime, lastRunStatus columns.
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN lastRunTime INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN lastRunStatus TEXT")
             }
+        }
 
-            if (!columnExists) {
-                val defaultClause = if (defaultValue != null) " DEFAULT $defaultValue" else ""
-                db.execSQL("ALTER TABLE $tableName ADD COLUMN $columnName $columnType$defaultClause")
-                Log.d(TAG, "✅ Added missing column: $columnName to table: $tableName")
-            } else {
-                Log.d(TAG, "ℹ️ Column $columnName already exists in table $tableName")
+        // v3 → v4: added validation and advanced execution columns.
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN validationType TEXT NOT NULL DEFAULT 'NONE'")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN validationText TEXT")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN validationWaitTimeSec INTEGER NOT NULL DEFAULT 6")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN loopUntilSuccess INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN maxAttempts INTEGER NOT NULL DEFAULT 3")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN referenceImagePath TEXT")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN delayBeforeTapSec INTEGER NOT NULL DEFAULT 3")
+            }
+        }
+
+        // v4 → v5: added isRecurring, createdAt, updatedAt columns.
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN isRecurring INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE automation_tasks ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // v5 → v6: added retryCount and maxRetries columns to support the retry mechanism.
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE automation_tasks ADD COLUMN retryCount INTEGER NOT NULL DEFAULT 0"
+                )
+                database.execSQL(
+                    "ALTER TABLE automation_tasks ADD COLUMN maxRetries INTEGER NOT NULL DEFAULT 3"
+                )
             }
         }
 
@@ -128,14 +91,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "automator_database"
                 )
-                .addMigrations(
-                    MIGRATION_1_2,
-                    MIGRATION_2_3,
-                    MIGRATION_3_4,
-                    MIGRATION_4_5,
-                    MIGRATION_5_6
-                )
-                .fallbackToDestructiveMigrationOnDowngrade() // Prevent data loss on upgrades, fallback only on downgrade
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
                 INSTANCE = instance
                 instance

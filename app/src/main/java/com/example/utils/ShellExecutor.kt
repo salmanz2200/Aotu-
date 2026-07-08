@@ -1,40 +1,16 @@
 package com.example.utils
 
 import android.util.Log
-import kotlinx.coroutines.delay
 import java.io.BufferedReader
 import java.io.DataOutputStream
 import java.io.InputStreamReader
+import kotlinx.coroutines.delay
 
 object ShellExecutor {
     private const val TAG = "ShellExecutor"
     private var isRootAvailableCached: Boolean? = null
-    private val packageNameRegex = Regex("^[a-zA-Z0-9_.]+$")
+    private val packageNameRegex = Regex("^[a-zA-Z0-9._]+$")
     private val classNameRegex = Regex("^[a-zA-Z0-9_.$]+$")
-
-    private fun readProcessStreams(process: Process): Pair<String, String> {
-        var output = ""
-        var error = ""
-        val t1 = Thread {
-            try {
-                output = process.inputStream.bufferedReader().use { it.readText() }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error reading stdout", e)
-            }
-        }
-        val t2 = Thread {
-            try {
-                error = process.errorStream.bufferedReader().use { it.readText() }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error reading stderr", e)
-            }
-        }
-        t1.start()
-        t2.start()
-        try { t1.join(10000) } catch (e: Exception) {}
-        try { t2.join(10000) } catch (e: Exception) {}
-        return Pair(output.trim(), error.trim())
-    }
 
     data class ShellResult(
         val isSuccess: Boolean,
@@ -46,7 +22,6 @@ object ShellExecutor {
     fun isRootAvailable(): Boolean {
         isRootAvailableCached?.let { return it }
 
-        // Check standard files first
         val paths = arrayOf(
             "/system/app/Superuser.apk",
             "/sbin/su",
@@ -65,7 +40,6 @@ object ShellExecutor {
             }
         }
 
-        // Try 'which su'
         var whichProcess: Process? = null
         var whichReader: BufferedReader? = null
         try {
@@ -85,7 +59,6 @@ object ShellExecutor {
             try { whichProcess?.destroy() } catch (e: Exception) {}
         }
 
-        // Try executing su directly with a simple command to check
         var idProcess: Process? = null
         var idReader: BufferedReader? = null
         try {
@@ -110,19 +83,45 @@ object ShellExecutor {
         return false
     }
 
+    /** Read stdout and stderr from [process] concurrently to prevent pipe-buffer deadlocks. */
+    private fun readConcurrently(process: Process): Pair<String, String> {
+        val outputLines = mutableListOf<String>()
+        val errorLines = mutableListOf<String>()
+
+        val outThread = Thread {
+            try {
+                BufferedReader(InputStreamReader(process.inputStream)).use { r ->
+                    outputLines.addAll(r.readLines())
+                }
+            } catch (e: Exception) {}
+        }
+        val errThread = Thread {
+            try {
+                BufferedReader(InputStreamReader(process.errorStream)).use { r ->
+                    errorLines.addAll(r.readLines())
+                }
+            } catch (e: Exception) {}
+        }
+        outThread.start()
+        errThread.start()
+        outThread.join()
+        errThread.join()
+
+        return Pair(outputLines.joinToString("\n"), errorLines.joinToString("\n"))
+    }
+
     fun execute(command: String, useRoot: Boolean = true): ShellResult {
         Log.d(TAG, "Executing command: $command (root=$useRoot)")
         
         if (useRoot) {
-            // Try executing via su -c directly first, as requested
             var process: Process? = null
             try {
                 process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
-                val (output, error) = readProcessStreams(process)
+                val (output, error) = readConcurrently(process)
                 val exitCode = process.waitFor()
-                
+
                 Log.d(TAG, "su -c direct execution result: exitCode=$exitCode, out=$output, err=$error")
-                
+
                 if (exitCode == 0) {
                     isRootAvailableCached = true
                     return ShellResult(
@@ -142,7 +141,7 @@ object ShellExecutor {
             }
         }
 
-        // Fallback to the original stdin writing shell execution or standard shell
+        // Fallback to stdin-writing shell execution
         var process: Process? = null
         var os: DataOutputStream? = null
 
@@ -159,12 +158,12 @@ object ShellExecutor {
                 }
             }
             os = DataOutputStream(process.outputStream)
-            
             os.writeBytes("$command\n")
             os.writeBytes("exit\n")
             os.flush()
+            os.close()
 
-            val (output, error) = readProcessStreams(process)
+            val (output, error) = readConcurrently(process)
             val exitCode = process.waitFor()
 
             Log.d(TAG, "Fallback Command result: exitCode=$exitCode, out=$output, err=$error")
@@ -191,18 +190,31 @@ object ShellExecutor {
         }
     }
 
-    // Helper to simulate action if Root is not available
     fun simulateOrExecuteTap(x: Float, y: Float): ShellResult {
         val xInt = x.toInt()
         val yInt = y.toInt()
         Log.d(TAG, "Executing root tap command at ($xInt, $yInt)")
-        
+
         val result = execute("input tap $xInt $yInt", useRoot = true)
-        
+
+        var p: Process? = null
+        try {
+            p = Runtime.getRuntime().exec(arrayOf("su", "-c", "input tap $xInt $yInt"))
+            p.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "Direct su -c tap execution failed", e)
+        } finally {
+            p?.let {
+                try { it.inputStream?.close() } catch (e: Exception) {}
+                try { it.errorStream?.close() } catch (e: Exception) {}
+                try { it.outputStream?.close() } catch (e: Exception) {}
+                try { it.destroy() } catch (e: Exception) {}
+            }
+        }
+
         if (result.isSuccess) {
             return result
         }
-        // Simulator mode for standard devices
         Log.d(TAG, "SIMULATOR: Mocking screen tap at ($xInt, $yInt)")
         return ShellResult(true, "Simulated tap at ($xInt, $yInt)", "", 0)
     }
@@ -216,8 +228,8 @@ object ShellExecutor {
         val component = "$packageName/$className"
         var process: Process? = null
         return try {
-            process = Runtime.getRuntime().exec(arrayOf("su", "-c", "am start -n $component"))
-            val (output, error) = readProcessStreams(process)
+            process = Runtime.getRuntime().exec(arrayOf("am", "start", "-n", component))
+            val (output, error) = readConcurrently(process)
             val exitCode = process.waitFor()
             Log.d(TAG, "am start result: exitCode=$exitCode, out=$output, err=$error")
             ShellResult(
@@ -242,28 +254,52 @@ object ShellExecutor {
         }
     }
 
-    private fun sanitizePackageName(packageName: String): String {
-        // Android package names contain only alphanumeric characters, underscores, and dots.
-        // Enforce a strict regex to prevent any shell command injection (no ;, |, &, `, \, etc.)
-        val regex = Regex("^[a-zA-Z0-9_.]+$")
-        if (!regex.matches(packageName)) {
-            Log.e(TAG, "❌ SECURITY ALERT: Potential command injection blocked in package name: '$packageName'")
-            throw IllegalArgumentException("Invalid package name: potential command injection")
-        }
-        return packageName
-    }
-
     fun simulateOrExecuteForceStop(packageName: String): ShellResult {
-        val safePackageName = sanitizePackageName(packageName)
-        Log.d(TAG, "Executing root force stop for: $safePackageName")
-        
-        val result = execute("am force-stop $safePackageName", useRoot = true)
-        
+        Log.d(TAG, "Executing root force stop for: $packageName")
+
+        if (!packageName.matches(packageNameRegex)) {
+            Log.e(TAG, "Rejected invalid packageName: $packageName")
+            return ShellResult(false, "", "Invalid package name", -1)
+        }
+
+        val result = execute("am force-stop $packageName", useRoot = true)
+        execute("pkill -9 -f $packageName", useRoot = true)
+
+        var p1: Process? = null
+        try {
+            p1 = Runtime.getRuntime().exec(arrayOf("su", "-c", "am force-stop $packageName"))
+            p1.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "Direct su -c force-stop execution failed", e)
+        } finally {
+            p1?.let {
+                try { it.inputStream?.close() } catch (e: Exception) {}
+                try { it.errorStream?.close() } catch (e: Exception) {}
+                try { it.outputStream?.close() } catch (e: Exception) {}
+                try { it.destroy() } catch (e: Exception) {}
+            }
+        }
+
+        var p2: Process? = null
+        try {
+            p2 = Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -9 -f $packageName"))
+            p2.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "Direct su -c pkill execution failed", e)
+        } finally {
+            p2?.let {
+                try { it.inputStream?.close() } catch (e: Exception) {}
+                try { it.errorStream?.close() } catch (e: Exception) {}
+                try { it.outputStream?.close() } catch (e: Exception) {}
+                try { it.destroy() } catch (e: Exception) {}
+            }
+        }
+
         if (result.isSuccess) {
             return result
         }
-        Log.d(TAG, "SIMULATOR: Mocking force stop for $safePackageName")
-        return ShellResult(true, "Simulated force stop of $safePackageName", "", 0)
+        Log.d(TAG, "SIMULATOR: Mocking force stop for $packageName")
+        return ShellResult(true, "Simulated force stop of $packageName", "", 0)
     }
 
     fun simulateOrExecuteLockScreen(): ShellResult {
@@ -277,36 +313,48 @@ object ShellExecutor {
 
     fun captureScreenshot(outputPath: String): Boolean {
         val result = execute("screencap -p $outputPath", useRoot = true)
-        return result.isSuccess
+        if (result.isSuccess) {
+            return true
+        }
+        Log.w(TAG, "Screen capture failed: ${result.error}")
+        return false // Return the actual failure instead of masking it
     }
 
     suspend fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
-        val safePackageName = sanitizePackageName(packageName)
-        Log.d(TAG, "Waiting for app $safePackageName to be ready/foreground (max $maxWaitSec sec)...")
+        Log.d(TAG, "Waiting for app $packageName to be ready/foreground (max $maxWaitSec sec)...")
         val startTime = System.currentTimeMillis()
         val timeoutMs = maxWaitSec * 1000L
-        
+
         while (System.currentTimeMillis() - startTime < timeoutMs) {
-            // Check 1: Check using root dumpsys window
             val result = execute("dumpsys window | grep mCurrentFocus", useRoot = true)
             val output = result.output.lowercase()
-            if (result.isSuccess && output.contains(safePackageName.lowercase())) {
-                Log.d(TAG, "App $safePackageName is in foreground according to dumpsys!")
-                return true
-            }
-            
-            // Check 2: Check using resumed activity dumpsys activity
-            val result2 = execute("dumpsys activity | grep mResumedActivity", useRoot = true)
-            val output2 = result2.output.lowercase()
-            if (result2.isSuccess && output2.contains(safePackageName.lowercase())) {
-                Log.d(TAG, "App $safePackageName is in foreground according to mResumedActivity!")
+            if (result.isSuccess && output.contains(packageName.lowercase())) {
+                Log.d(TAG, "App $packageName is in foreground according to dumpsys!")
                 return true
             }
 
-            // Sleep 500ms and try again
-            try { delay(500) } catch (e: Exception) {}
+            val result2 = execute("dumpsys activity | grep mResumedActivity", useRoot = true)
+            val output2 = result2.output.lowercase()
+            if (result2.isSuccess && output2.contains(packageName.lowercase())) {
+                Log.d(TAG, "App $packageName is in foreground according to mResumedActivity!")
+                return true
+            }
+
+            try {
+                val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                val runningTasks = am.getRunningTasks(1)
+                if (runningTasks.isNotEmpty()) {
+                    val topActivity = runningTasks[0].topActivity
+                    if (topActivity != null && topActivity.packageName.equals(packageName, ignoreCase = true)) {
+                        Log.d(TAG, "App $packageName is in foreground according to getRunningTasks!")
+                        return true
+                    }
+                }
+            } catch (e: Exception) {}
+
+            delay(500)
         }
-        Log.w(TAG, "Timeout waiting for app $safePackageName to be ready.")
+        Log.w(TAG, "Timeout waiting for app $packageName to be ready.")
         return false
     }
 }
