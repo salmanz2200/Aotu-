@@ -2,6 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Only apps signed with the same key (i.e. this app itself / its AlarmManager
+         PendingIntents) may send broadcasts to AutomationReceiver. This prevents
+         any third-party app from triggering arbitrary task executions. -->
+    <permission
+        android:name="com.example.permission.AUTOMATION"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="com.example.permission.AUTOMATION" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -43,30 +52,19 @@
             android:theme="@style/Theme.MyApplication">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- Boot Receiver for rescheduling alarms on startup (protected by permission) -->
         <receiver
-            android:name=".service.BootReceiver"
+            android:name=".service.AutomationReceiver"
             android:enabled="true"
             android:exported="true"
-            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            android:permission="com.example.permission.AUTOMATION">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.sec.android.intent.action.QUICKBOOT_POWERON" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Automation Receiver for internal alarms (strictly NOT exported for security) -->
-        <receiver
-            android:name=".service.AutomationReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
                 <action android:name="com.example.ACTION_RUN_TASK" />
             </intent-filter>
         </receiver>

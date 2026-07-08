@@ -57,13 +57,16 @@ class AutomationService : Service() {
             try {
                 // Acquire wake lock to keep the device awake during active execution
                 val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-                if (powerManager != null) {
-                    wakeLock = powerManager.newWakeLock(
-                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                        "Automator:FullExecutionWakeLock"
-                    )
-                    wakeLock?.acquire(3 * 60 * 1000L) // 3 minutes max
+                if (powerManager == null) {
+                    Log.e(TAG, "PowerManager not available, stopping service")
+                    cleanupAndStop()
+                    return START_NOT_STICKY
                 }
+                wakeLock = powerManager.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "Automator:FullExecutionWakeLock"
+                )
+                wakeLock?.acquire(3 * 60 * 1000L) // 3 minutes max
 
                 updateNotification("جاري تشغيل المهمة تلقائياً...")
                 runTask(taskId)
@@ -99,14 +102,17 @@ class AutomationService : Service() {
                 } catch (e: Exception) {}
 
                 val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-                if (powerManager != null) {
-                    wakeLock = powerManager.newWakeLock(
-                        PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                        "Automator:FullExecutionWakeLock"
-                    )
-                    wakeLock?.acquire(durationMs)
-                    Log.d(TAG, "Acquired wakeLock for dynamic duration: ${durationMs / 1000} seconds")
+                if (powerManager == null) {
+                    Log.e(TAG, "PowerManager not available in runTask")
+                    cleanupAndStop()
+                    return@launch
                 }
+                wakeLock = powerManager.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                    "Automator:FullExecutionWakeLock"
+                )
+                wakeLock?.acquire(durationMs)
+                Log.d(TAG, "Acquired wakeLock for dynamic duration: ${durationMs / 1000} seconds")
 
                 Log.d(TAG, "Running automation task: ${task.name} for package ${task.packageName}")
                 var executionSuccess = false
