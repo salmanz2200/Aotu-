@@ -1,3 +1,5 @@
+// App-level build configuration. All Firebase dependencies (firebase-bom, firebase-ai,
+// and firebase-appcheck-recaptcha) have been fully removed from this project.
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)

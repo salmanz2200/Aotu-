@@ -689,6 +689,7 @@ fun AddEditTaskScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             try {
+                // Wrap openInputStream in .use {} block to guarantee safe and deterministic closing of resources
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
                     val appDir = context.getExternalFilesDir(null) ?: context.filesDir
                     val taskIdSuffix = editingTask?.id ?: System.currentTimeMillis()
@@ -1501,6 +1502,7 @@ fun AddEditTaskScreen(
                     Toast.makeText(context, "يرجى كتابة اسم واختيار تطبيق مستهدف للمهمة", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
+                // Mandatory validation: Ensure that the task is scheduled on at least one day before saving to DB
                 if (selectedDays.isEmpty()) {
                     Toast.makeText(context, "يرجى اختيار يوم واحد على الأقل لتشغيل المهمة", Toast.LENGTH_SHORT).show()
                     return@Button

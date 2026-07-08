@@ -255,7 +255,8 @@ object GeminiApiClient {
             json?.optBoolean("success", false) ?: false
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for screen comparison", e)
-            false // Fail-closed on API failure
+            // On exception, return false explicitly to maintain secure, fail-closed behavior.
+            false
         } finally {
             try { if (!targetFrame.isRecycled) targetFrame.recycle() } catch (ex: Exception) {}
             try { if (!actualScreenshot.isRecycled) actualScreenshot.recycle() } catch (ex: Exception) {}
@@ -310,7 +311,8 @@ object GeminiApiClient {
             json?.optBoolean("success", false) ?: false
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Gemini API for text search on screen", e)
-            false // Fail-closed on API failure
+            // On exception, return false explicitly to maintain secure, fail-closed behavior.
+            false
         } finally {
             try { if (!screenshot.isRecycled) screenshot.recycle() } catch (ex: Exception) {}
         }

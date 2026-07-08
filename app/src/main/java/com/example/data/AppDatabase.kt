@@ -16,8 +16,8 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        // v1 → v2: added actionType, tapX, tapY, videoFilePath, mimicSteps columns;
-        //           created the execution_logs table.
+        // Explicit Room migrations to upgrade the schema safely across database versions:
+        // Migration from version 1 to 2: Added columns for action execution, mimic steps, and the execution logs table.
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE automation_tasks ADD COLUMN actionType TEXT NOT NULL DEFAULT 'TAP'")
@@ -42,7 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // v2 → v3: added lastRunTime, lastRunStatus columns.
+        // Migration from version 2 to 3: Added columns for last execution tracking.
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE automation_tasks ADD COLUMN lastRunTime INTEGER NOT NULL DEFAULT 0")
@@ -50,7 +50,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // v3 → v4: added validation and advanced execution columns.
+        // Migration from version 3 to 4: Added advanced task validation, loop conditions, and reference image columns.
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE automation_tasks ADD COLUMN validationType TEXT NOT NULL DEFAULT 'NONE'")
@@ -63,7 +63,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // v4 → v5: added isRecurring, createdAt, updatedAt columns.
+        // Migration from version 4 to 5: Added recurring and audit timestamp columns.
         private val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE automation_tasks ADD COLUMN isRecurring INTEGER NOT NULL DEFAULT 1")

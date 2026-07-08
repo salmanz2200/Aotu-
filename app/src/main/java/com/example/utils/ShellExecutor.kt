@@ -110,6 +110,8 @@ object ShellExecutor {
         return Pair(outputLines.joinToString("\n"), errorLines.joinToString("\n"))
     }
 
+    // Executes a shell command. It is critical to use readConcurrently() to read stdout and stderr from
+    // the running process concurrently, avoiding pipe-buffer deadlocks that occur with sequential reading.
     fun execute(command: String, useRoot: Boolean = true): ShellResult {
         Log.d(TAG, "Executing command: $command (root=$useRoot)")
         
@@ -311,13 +313,15 @@ object ShellExecutor {
         return ShellResult(true, "Simulated screen lock", "", 0)
     }
 
+    // Captures a screenshot via screencap. If execution fails, it returns false as a fail-safe fallback
+    // instead of masking the error, allowing callers to handle screenshot failure gracefully.
     fun captureScreenshot(outputPath: String): Boolean {
         val result = execute("screencap -p $outputPath", useRoot = true)
         if (result.isSuccess) {
             return true
         }
         Log.w(TAG, "Screen capture failed: ${result.error}")
-        return false // Return the actual failure instead of masking it
+        return false // Fallback: Return false on screenshot failure
     }
 
     suspend fun waitForAppToBeReady(context: android.content.Context, packageName: String, maxWaitSec: Int = 10): Boolean {
