@@ -22,6 +22,7 @@ import com.example.utils.AlarmScheduler
 import com.example.utils.ShellExecutor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -112,9 +113,7 @@ class AutomationService : Service() {
                     ShellExecutor.execute("input keyevent KEYCODE_WAKEUP", useRoot = true)
                     ShellExecutor.execute("input keyevent 224", useRoot = true) // Screen on
                     ShellExecutor.execute("wm dismiss-keyguard", useRoot = true) // Dismiss lockscreen
-                    withContext(Dispatchers.Main) {
-                        Thread.sleep(1500)
-                    }
+                    delay(1500)
 
                     // 2. Perform the execution steps based on user-defined limits
                     val maxLimit = if (task.loopUntilSuccess) task.maxAttempts.coerceAtLeast(1) else 1
@@ -137,9 +136,7 @@ class AutomationService : Service() {
                             } catch (e: Exception) {
                                 Log.e(TAG, "Error calling killBackgroundProcesses", e)
                             }
-                            withContext(Dispatchers.Main) {
-                                Thread.sleep(retryDelayMs)
-                            }
+                            delay(retryDelayMs)
                         }
                         attempt++
                     }
@@ -156,9 +153,7 @@ class AutomationService : Service() {
                     }
 
                     // Wait 2 seconds to make sure cleanup is fully completed
-                    withContext(Dispatchers.Main) {
-                        Thread.sleep(2000)
-                    }
+                    delay(2000)
 
                     // 4. Lock screen again to preserve battery
                     ShellExecutor.simulateOrExecuteLockScreen()
@@ -227,9 +222,7 @@ class AutomationService : Service() {
 
             for ((index, step) in steps.withIndex()) {
                 Log.d(TAG, "Executing step ${index + 1}/${steps.size}: Tap (${step.x}, ${step.y}) after ${step.delayMs}ms")
-                withContext(Dispatchers.Main) {
-                    Thread.sleep(step.delayMs.coerceAtLeast(100L))
-                }
+                delay(step.delayMs.coerceAtLeast(100L))
                 ShellExecutor.simulateOrExecuteTap(step.x, step.y)
             }
             return Pair(true, "تم تنفيذ جميع حركات الفيديو التلقائية بنجاح")
@@ -341,9 +334,7 @@ class AutomationService : Service() {
         Log.d(TAG, "الانتظار الإضافي $delaySec ثوانٍ للتحميل الكامل قبل الضغط...")
         updateNotification("الانتظار $delaySec ثوانٍ لإتاحة تحميل محتويات الصفحة...")
         
-        withContext(Dispatchers.Main) {
-            Thread.sleep(delaySec * 1000L)
-        }
+        delay(delaySec * 1000L)
 
         // 1. Run action steps
         val actionResult = runActionSteps(task)
@@ -357,9 +348,7 @@ class AutomationService : Service() {
         Log.d(TAG, "Waiting $waitTimeSec seconds before performing success verification...")
         updateNotification("جاري الانتظار $waitTimeSec ثانية للتأكد من اكتمال العملية...")
         
-        withContext(Dispatchers.Main) {
-            Thread.sleep(waitTimeSec * 1000L)
-        }
+        delay(waitTimeSec * 1000L)
 
         // 3. Perform validation (التقط صورة للشاشة والتحقق مع Gemini)
         val validationResult = performValidationSteps(task, lastExecutionMsg)
